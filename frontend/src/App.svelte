@@ -197,27 +197,29 @@
   <main class="flex flex-1 overflow-hidden">
 
     <!-- Colonne gauche : topologie + sélecteur -->
-    <div class="w-2/5 border-r border-zinc-800 flex flex-col">
+    <div class="w-2/5 border-r border-zinc-800 flex flex-col overflow-hidden">
 
-      <!-- Topologie -->
-      <div class="flex-1 p-4 min-h-0">
+      <!-- Topologie (hauteur fixe) -->
+      <div class="h-64 shrink-0 p-3 border-b border-zinc-800">
         <p class="text-xs text-zinc-500 uppercase tracking-wider mb-2">Topologie réseau</p>
-        <div class="h-[calc(100%-1.5rem)]">
+        <div class="h-[calc(100%-1.25rem)]">
           <NetworkTopology />
         </div>
       </div>
 
-      <!-- Sélecteur de scénario -->
-      {#if ready && scenarios.length > 0}
-        <div class="border-t border-zinc-800 p-4">
+      <!-- Sélecteur de scénario (prend le reste) -->
+      <div class="flex-1 overflow-y-auto p-4">
+        {#if ready && scenarios.length > 0}
           <p class="text-xs text-zinc-500 uppercase tracking-wider mb-3">Scénario</p>
           <ScenarioSelector
             {scenarios}
             bind:selectedId
             disabled={isRunning}
           />
-        </div>
-      {/if}
+        {:else if !ready}
+          <p class="text-xs text-zinc-600 text-center pt-4">Chargement…</p>
+        {/if}
+      </div>
     </div>
 
     <!-- Colonne droite : timeline des steps -->
