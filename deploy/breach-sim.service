@@ -1,0 +1,26 @@
+[Unit]
+Description=breach-sim — AI Cyber Defense Demo
+After=network.target
+Documentation=https://github.com/patlegu/breach-sim
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/srv/breach-sim
+
+# Venv créé une fois par : bash start.sh (ou scripts/setup.sh)
+ExecStart=/srv/breach-sim/.venv/bin/uvicorn backend.main:app \
+    --host 127.0.0.1 \
+    --port 8888 \
+    --workers 1
+
+Environment=ONNX_DIR=/srv/breach-sim/onnx
+Environment=PORT=8888
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
