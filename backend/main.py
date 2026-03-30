@@ -2,14 +2,15 @@
 main.py — FastAPI backend pour la démo breach-sim.
 
 Endpoints :
-    GET  /api/health           → état de chargement des modèles
-    GET  /api/scenario         → métadonnées du scénario
-    POST /api/scenario/run     → lance le scénario
-    POST /api/scenario/reset   → annule et remet à zéro
-    GET  /api/scenario/stream  → SSE : tokens + événements
+    GET  /api/health              → état de chargement des modèles
+    GET  /api/scenarios           → liste des scénarios disponibles
+    GET  /api/scenarios/{id}      → détail d'un scénario (steps inclus)
+    POST /api/scenario/run        → lance un scénario { "scenario_id": "..." }
+    POST /api/scenario/reset      → annule et remet à zéro
+    GET  /api/scenario/stream     → SSE : tokens + événements
 
 Démarrage :
-    uvicorn demo.backend.main:app --port 8888 --workers 1
+    uvicorn backend.main:app --port 8888 --workers 1
     # --workers 1 obligatoire : OnnxRunner est un singleton CPU
 """
 
@@ -24,19 +25,29 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from .onnx_runner import OnnxRunner
-from .scenario import SCENARIO_STEPS
+from .scenario import SCENARIOS, SCENARIO_ORDER
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s — %(message)s")
 logger = logging.getLogger(__name__)
 
-ONNX_DIR = Path(os.getenv("ONNX_DIR", Path(__file__).resolve().parent.parent.parent / "cyber-agent-engine" / "onnx"))
+ONNX_DIR = Path(os.getenv("ONNX_DIR", Path(__file__).resolve().parent.parent / "onnx"))
 
 runner = OnnxRunner()
-_sse_queue: asyncio.Queue = asyncio.Queue()
+_sse_queues: list[asyncio.Queue] = []
 _scenario_running = False
 _stop_event = asyncio.Event()
+_current_scenario_id: str | None = None
+
+_MODEL_INFO = {
+    "opnsense":  {"name": "Qwen2.5-3B + OPNsense LoRA",  "precision": "int4", "repo": "patlegu/opnsense-qwen25-onnx-int4"},
+    "wireguard": {"name": "Qwen2.5-3B + WireGuard LoRA", "precision": "int4", "repo": "patlegu/wireguard-qwen25-onnx-int4"},
+    "crowdsec":  {"name": "Qwen2.5-3B + CrowdSec LoRA",  "precision": "int4", "repo": "patlegu/crowdsec-qwen25-onnx-int4"},
+}
+
+_ALL_AGENTS = ("opnsense", "wireguard", "crowdsec")
 
 
 @asynccontextmanager
@@ -60,7 +71,8 @@ app.add_middleware(
 # ── Helpers SSE ──────────────────────────────────────────────────────────────
 
 async def _broadcast(event: dict) -> None:
-    await _sse_queue.put(event)
+    for q in list(_sse_queues):
+        await q.put(event)
 
 
 def _sse_format(event: dict) -> str:
@@ -69,12 +81,13 @@ def _sse_format(event: dict) -> str:
 
 # ── Scénario ─────────────────────────────────────────────────────────────────
 
-async def _run_scenario_task() -> None:
+async def _run_scenario_task(scenario_id: str) -> None:
     global _scenario_running
+    scenario = SCENARIOS[scenario_id]
     try:
-        await _broadcast({"type": "scenario_start"})
+        await _broadcast({"type": "scenario_start", "scenario_id": scenario_id})
 
-        for step in SCENARIO_STEPS:
+        for step in scenario["steps"]:
             if _stop_event.is_set():
                 break
 
@@ -85,6 +98,7 @@ async def _run_scenario_task() -> None:
                 "title": step["title"],
                 "description": step["description"],
                 "cap": step["cap"],
+                "attack_edges": step.get("attack_edges", []),
             })
 
             tokens_buf = []
@@ -103,7 +117,6 @@ async def _run_scenario_task() -> None:
             if _stop_event.is_set():
                 break
 
-            # Parser le tool_call depuis la sortie
             tool_call = _parse_tool_call(full_text)
 
             await _broadcast({
@@ -146,15 +159,6 @@ def _parse_tool_call(text: str) -> dict | None:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-_MODEL_INFO = {
-    "opnsense":  {"name": "Qwen2.5-3B + OPNsense LoRA",  "precision": "int4", "repo": "patlegu/opnsense-qwen25-onnx-int4"},
-    "wireguard": {"name": "Qwen2.5-3B + WireGuard LoRA", "precision": "int4", "repo": "patlegu/wireguard-qwen25-onnx-int4"},
-    "crowdsec":  {"name": "Qwen2.5-3B + CrowdSec LoRA",  "precision": "int4", "repo": "patlegu/crowdsec-qwen25-onnx-int4"},
-}
-
-_ALL_AGENTS = ("opnsense", "wireguard", "crowdsec")
-
-
 @app.get("/api/health")
 async def health():
     return {
@@ -165,54 +169,92 @@ async def health():
     }
 
 
-@app.get("/api/scenario")
-async def get_scenario():
+@app.get("/api/scenarios")
+async def list_scenarios():
+    result = []
+    for sid in SCENARIO_ORDER:
+        s = SCENARIOS[sid]
+        result.append({
+            "id": s["id"],
+            "title": s["title"],
+            "description": s["description"],
+            "tags": s.get("tags", []),
+            "step_count": len(s["steps"]),
+            "agents": list({step["agent"] for step in s["steps"]}),
+        })
+    return {"scenarios": result}
+
+
+@app.get("/api/scenarios/{scenario_id}")
+async def get_scenario(scenario_id: str):
+    if scenario_id not in SCENARIOS:
+        raise HTTPException(404, f"Scénario '{scenario_id}' introuvable")
+    s = SCENARIOS[scenario_id]
     return {
+        "id": s["id"],
+        "title": s["title"],
+        "description": s["description"],
+        "tags": s.get("tags", []),
         "steps": [
             {
-                "id": s["id"],
-                "title": s["title"],
-                "agent": s["agent"],
-                "description": s["description"],
-                "cap": s["cap"],
-                "mitre": s.get("mitre"),
+                "id": step["id"],
+                "title": step["title"],
+                "agent": step["agent"],
+                "description": step["description"],
+                "cap": step["cap"],
+                "mitre": step.get("mitre"),
+                "attack_edges": step.get("attack_edges", []),
             }
-            for s in SCENARIO_STEPS
-        ]
+            for step in s["steps"]
+        ],
     }
 
 
+class RunRequest(BaseModel):
+    scenario_id: str = "ssh_brute_force"
+
+
 @app.post("/api/scenario/run")
-async def run_scenario():
-    global _scenario_running
+async def run_scenario(req: RunRequest):
+    global _scenario_running, _current_scenario_id
     if not runner.ready:
         raise HTTPException(503, "Modèles ONNX pas encore chargés")
     if _scenario_running:
         raise HTTPException(409, "Scénario déjà en cours")
+    if req.scenario_id not in SCENARIOS:
+        raise HTTPException(404, f"Scénario '{req.scenario_id}' introuvable")
     _stop_event.clear()
     _scenario_running = True
-    asyncio.create_task(_run_scenario_task())
-    return {"status": "started"}
+    _current_scenario_id = req.scenario_id
+    asyncio.create_task(_run_scenario_task(req.scenario_id))
+    return {"status": "started", "scenario_id": req.scenario_id}
 
 
 @app.post("/api/scenario/reset")
 async def reset_scenario():
-    global _scenario_running
+    global _scenario_running, _current_scenario_id
     _stop_event.set()
     _scenario_running = False
+    _current_scenario_id = None
     await _broadcast({"type": "scenario_reset"})
     return {"status": "reset"}
 
 
 @app.get("/api/scenario/stream")
 async def stream_events():
+    q: asyncio.Queue = asyncio.Queue()
+    _sse_queues.append(q)
+
     async def event_generator():
-        while True:
-            try:
-                event = await asyncio.wait_for(_sse_queue.get(), timeout=15.0)
-                yield _sse_format(event)
-            except asyncio.TimeoutError:
-                yield _sse_format({"type": "ping"})
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=15.0)
+                    yield _sse_format(event)
+                except asyncio.TimeoutError:
+                    yield _sse_format({"type": "ping"})
+        finally:
+            _sse_queues.remove(q)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 

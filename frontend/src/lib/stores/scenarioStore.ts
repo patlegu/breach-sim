@@ -19,13 +19,11 @@ export interface ScenarioStatus {
   steps: Record<string, StepState>
 }
 
-const STEP_IDS = ['step_1', 'step_2', 'step_3', 'step_4']
-
-function makeInitialSteps(): Record<string, StepState> {
+function makeSteps(stepIds: string[]): Record<string, StepState> {
   return Object.fromEntries(
-    STEP_IDS.map(id => [
+    stepIds.map(id => [
       id,
-      { id, status: 'idle', tokens: [], tokenCount: 0, toolCall: null, raw: '', latency: null, startedAt: null },
+      { id, status: 'idle' as StepStatus, tokens: [], tokenCount: 0, toolCall: null, raw: '', latency: null, startedAt: null },
     ])
   )
 }
@@ -34,11 +32,14 @@ function createScenarioStore() {
   const { subscribe, set, update } = writable<ScenarioStatus>({
     status: 'idle',
     startedAt: null,
-    steps: makeInitialSteps(),
+    steps: makeSteps(['step_1', 'step_2', 'step_3', 'step_4']),
   })
 
   return {
     subscribe,
+    init(stepIds: string[]) {
+      set({ status: 'idle', startedAt: null, steps: makeSteps(stepIds) })
+    },
     setRunning() {
       update(s => ({ ...s, status: 'running', startedAt: Date.now() }))
     },
@@ -52,17 +53,17 @@ function createScenarioStore() {
       }))
     },
     appendToken(stepId: string, text: string) {
-      update(s => ({
-        ...s,
-        steps: {
-          ...s.steps,
-          [stepId]: {
-            ...s.steps[stepId],
-            tokens: [...s.steps[stepId].tokens, text],
-            tokenCount: s.steps[stepId].tokenCount + 1,
+      update(s => {
+        const step = s.steps[stepId]
+        if (!step) return s
+        return {
+          ...s,
+          steps: {
+            ...s.steps,
+            [stepId]: { ...step, tokens: [...step.tokens, text], tokenCount: step.tokenCount + 1 },
           },
-        },
-      }))
+        }
+      })
     },
     setStepDone(stepId: string, toolCall: object, raw: string, latency: number) {
       update(s => ({
@@ -76,8 +77,12 @@ function createScenarioStore() {
     setError(_message: string) {
       update(s => ({ ...s, status: 'error' }))
     },
-    reset() {
-      set({ status: 'idle', startedAt: null, steps: makeInitialSteps() })
+    reset(stepIds?: string[]) {
+      update(s => ({
+        status: 'idle',
+        startedAt: null,
+        steps: makeSteps(stepIds ?? Object.keys(s.steps)),
+      }))
     },
   }
 }

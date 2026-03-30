@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
   import { topologyStore, type NodeStatus } from '../stores/topologyStore'
-  import { animStore, STEP_ATTACK_EDGES } from '../stores/animStore'
+  import { animStore } from '../stores/animStore'
   import cytoscape from 'cytoscape'
 
   let container: HTMLDivElement
@@ -109,7 +109,7 @@
       resetAllEdges()
       return
     }
-    const edges = state.activeStepId ? (STEP_ATTACK_EDGES[state.activeStepId] ?? []) : []
+    const edges = state.activeEdges
     if (state.phase === 'attacking') {
       startPulse(edges)
     } else if (state.phase === 'defended') {

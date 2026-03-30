@@ -18,7 +18,7 @@ export function connectDemoSSE(): () => void {
           break
         case 'step_start':
           scenarioStore.setStepRunning(event.step_id)
-          animStore.setAttacking(event.step_id)
+          animStore.setAttacking(event.step_id, event.attack_edges ?? [])
           break
         case 'token':
           scenarioStore.appendToken(event.step_id, event.text)
@@ -59,8 +59,12 @@ export function connectDemoSSE(): () => void {
   return () => { _es?.close(); _es = null }
 }
 
-export async function triggerScenario(): Promise<void> {
-  const res = await fetch('/api/scenario/run', { method: 'POST' })
+export async function triggerScenario(scenarioId: string): Promise<void> {
+  const res = await fetch('/api/scenario/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scenario_id: scenarioId }),
+  })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || `HTTP ${res.status}`)
@@ -81,5 +85,39 @@ export async function fetchHealth(): Promise<{
   models: Record<string, { name: string; precision: string; repo: string }>
 }> {
   const res = await fetch('/api/health')
+  return res.json()
+}
+
+export interface ScenarioMeta {
+  id: string
+  title: string
+  description: string
+  tags: string[]
+  step_count: number
+  agents: string[]
+}
+
+export interface ScenarioStep {
+  id: string
+  title: string
+  agent: string
+  description: string
+  cap: object
+  mitre: { tactic: string; technique: string; name: string; cve: string | null } | null
+  attack_edges: string[]
+}
+
+export interface ScenarioDetail extends ScenarioMeta {
+  steps: ScenarioStep[]
+}
+
+export async function fetchScenarios(): Promise<ScenarioMeta[]> {
+  const res = await fetch('/api/scenarios')
+  const data = await res.json()
+  return data.scenarios
+}
+
+export async function fetchScenario(id: string): Promise<ScenarioDetail> {
+  const res = await fetch(`/api/scenarios/${id}`)
   return res.json()
 }
