@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.env
+venv/
+.venv/
+backend/static/
+frontend/node_modules/
+frontend/dist/
+*.onnx.data
+*.onnx

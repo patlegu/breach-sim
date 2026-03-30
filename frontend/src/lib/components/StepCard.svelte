@@ -1,0 +1,96 @@
+<script lang="ts">
+  import { scenarioStore, type StepState } from '../stores/scenarioStore'
+
+  export let stepId: string
+  export let index: number
+  export let title: string
+  export let agent: string
+  export let description: string
+  export let cap: object
+
+  $: step = $scenarioStore.steps[stepId] as StepState
+  $: tokens = step?.tokens ?? []
+  $: status = step?.status ?? 'idle'
+  $: toolCall = step?.toolCall
+  $: latency = step?.latency
+
+  const agentColors: Record<string, string> = {
+    crowdsec: 'text-purple-400 border-purple-700 bg-purple-950',
+    opnsense: 'text-blue-400 border-blue-700 bg-blue-950',
+    wireguard: 'text-emerald-400 border-emerald-700 bg-emerald-950',
+  }
+
+  function formatJson(obj: object): string {
+    return JSON.stringify(obj, null, 2)
+  }
+
+  function highlightJson(str: string): string {
+    return str
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(?=\s*:))/g, '<span class="text-blue-300">$1</span>')
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")/g, '<span class="text-green-300">$1</span>')
+      .replace(/\b(\d+\.?\d*)\b/g, '<span class="text-amber-300">$1</span>')
+      .replace(/\b(true|false|null)\b/g, '<span class="text-red-300">$1</span>')
+  }
+</script>
+
+<div class="rounded-lg border border-zinc-700 bg-zinc-900 overflow-hidden transition-all duration-300
+  {status === 'running' ? 'border-amber-500 shadow-lg shadow-amber-900/30' : ''}
+  {status === 'done' ? 'border-defend' : ''}">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between px-4 py-3 border-b border-zinc-700 bg-zinc-800">
+    <div class="flex items-center gap-3">
+      <span class="text-zinc-500 text-sm font-mono">#{index}</span>
+      <span class="font-semibold text-zinc-100">{title}</span>
+      <span class="text-xs px-2 py-0.5 rounded border font-mono {agentColors[agent] ?? 'text-zinc-400 border-zinc-600 bg-zinc-800'}">
+        {agent}
+      </span>
+    </div>
+    <div class="flex items-center gap-2">
+      {#if latency !== null}
+        <span class="text-xs text-zinc-400 font-mono">{latency}s</span>
+      {/if}
+      {#if status === 'idle'}
+        <span class="w-2 h-2 rounded-full bg-zinc-600" />
+      {:else if status === 'running'}
+        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+      {:else if status === 'done'}
+        <span class="w-2 h-2 rounded-full bg-defend" />
+      {/if}
+    </div>
+  </div>
+
+  <!-- Description -->
+  <p class="px-4 py-2 text-sm text-zinc-400 border-b border-zinc-800">{description}</p>
+
+  <!-- Body : CAP + Output -->
+  {#if status !== 'idle'}
+    <div class="grid grid-cols-2 divide-x divide-zinc-700">
+
+      <!-- Paquet CAP v1 -->
+      <div class="p-3">
+        <p class="text-xs text-zinc-500 mb-2 uppercase tracking-wider">Paquet CAP v1</p>
+        <pre class="text-xs font-mono text-zinc-300 overflow-auto max-h-48 scrollbar-thin">{@html highlightJson(formatJson(cap))}</pre>
+      </div>
+
+      <!-- Sortie ONNX -->
+      <div class="p-3">
+        <p class="text-xs text-zinc-500 mb-2 uppercase tracking-wider">
+          Inférence ONNX
+          {#if status === 'running'}<span class="text-amber-400 ml-1">● en cours</span>{/if}
+        </p>
+        <pre class="text-xs font-mono text-green-400 overflow-auto max-h-48 scrollbar-thin whitespace-pre-wrap">{tokens.join('')}{#if status === 'running'}<span class="animate-pulse">▋</span>{/if}</pre>
+      </div>
+
+    </div>
+
+    <!-- Tool call résultant -->
+    {#if toolCall && status === 'done'}
+      <div class="px-3 pb-3 border-t border-zinc-800 mt-1">
+        <p class="text-xs text-zinc-500 mb-2 uppercase tracking-wider pt-2">Tool call</p>
+        <pre class="text-xs font-mono text-emerald-300 bg-zinc-950 rounded p-2 overflow-auto max-h-32 scrollbar-thin">{@html highlightJson(formatJson(toolCall))}</pre>
+      </div>
+    {/if}
+  {/if}
+
+</div>
