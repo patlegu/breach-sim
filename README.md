@@ -58,13 +58,16 @@ Base model: `Qwen/Qwen2.5-3B-Instruct` fine-tuned with LoRA on cybersecurity fun
 git clone https://github.com/patlegu/breach-sim
 cd breach-sim
 
-# Download ONNX models from HuggingFace (~9 GB total)
+# 0. Check system requirements (Python 3.10+, Node 18+, RAM, disk)
+bash scripts/check_requirements.sh
+
+# 1. Download ONNX models from HuggingFace (~9 GB total)
 bash scripts/download_models.sh
 
-# Build the frontend
+# 2. Build the frontend
 cd frontend && npm install && npm run build && cd ..
 
-# Launch
+# 3. Launch
 ./start.sh
 ```
 
