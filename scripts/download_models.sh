@@ -8,7 +8,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ONNX_DIR="${ONNX_DIR:-${SCRIPT_DIR}/../onnx}"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+ONNX_DIR="${ONNX_DIR:-${ROOT_DIR}/onnx}"
+VENV="${ROOT_DIR}/.venv"
 HF_USER="patlegu"
 
 AGENTS=(
@@ -17,10 +19,19 @@ AGENTS=(
   "crowdsec:crowdsec-qwen25-onnx-int4"
 )
 
-# Vérifier que huggingface-cli est disponible
-if ! command -v huggingface-cli &>/dev/null; then
+# Résoudre python3 — préférer le venv du projet si disponible
+if [ -f "${VENV}/bin/python3" ]; then
+  PYTHON="${VENV}/bin/python3"
+  PIP="${VENV}/bin/pip"
+else
+  PYTHON="python3"
+  PIP="python3 -m pip"
+fi
+
+# Installer huggingface_hub si absent
+if ! $PYTHON -c "import huggingface_hub" &>/dev/null 2>&1; then
   echo "📦 Installation de huggingface_hub..."
-  pip install -q huggingface_hub
+  $PIP install -q huggingface_hub
 fi
 
 mkdir -p "${ONNX_DIR}"
@@ -36,7 +47,7 @@ for entry in "${AGENTS[@]}"; do
   fi
 
   echo "⬇️  Téléchargement ${HF_USER}/${repo} → ${dest}..."
-  huggingface-cli download "${HF_USER}/${repo}" \
+  $PYTHON -m huggingface_hub download "${HF_USER}/${repo}" \
     --repo-type model \
     --local-dir "${dest}"
 
