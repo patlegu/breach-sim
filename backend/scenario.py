@@ -1,5 +1,5 @@
 """
-scenario.py — Définition du scénario d'attaque en 3 étapes.
+scenario.py — Définition du scénario d'attaque en 4 étapes.
 
 Chaque étape correspond à un paquet CAP v1 envoyé à un agent ONNX.
 """
@@ -12,6 +12,12 @@ SCENARIO_STEPS = [
         "description": "847 tentatives de connexion SSH en 60s depuis 185.220.101.47",
         "edge": ("attacker", "crowdsec"),
         "topology_event": "crowdsec_ban",
+        "mitre": {
+            "tactic": "Credential Access",
+            "technique": "T1110",
+            "name": "Brute Force",
+            "cve": None,
+        },
         "cap": {
             "directive": "add_decision",
             "entities": {
@@ -36,6 +42,12 @@ SCENARIO_STEPS = [
         "description": "L'IP contourne le bouncer CrowdSec — blocage au niveau firewall",
         "edge": ("attacker", "firewall"),
         "topology_event": "firewall_block",
+        "mitre": {
+            "tactic": "Defense Evasion",
+            "technique": "T1562.004",
+            "name": "Disable or Modify System Firewall",
+            "cve": None,
+        },
         "cap": {
             "directive": "block_ip",
             "entities": {
@@ -61,6 +73,12 @@ SCENARIO_STEPS = [
         "description": "Scan SYN stealth sur les ports 1-1024 depuis le subnet 185.220.101.0/24",
         "edge": ("attacker", "dmz"),
         "topology_event": "filter_rule_added",
+        "mitre": {
+            "tactic": "Discovery",
+            "technique": "T1046",
+            "name": "Network Service Discovery",
+            "cve": None,
+        },
         "cap": {
             "directive": "add_filter_rule",
             "entities": {
@@ -78,5 +96,34 @@ SCENARIO_STEPS = [
             },
         },
         "expected_function": "add_filter_rule",
+    },
+    {
+        "id": "step_4",
+        "title": "Rotation des clés VPN",
+        "agent": "wireguard",
+        "description": "Pivot VPN détecté — rotation préventive des clés WireGuard",
+        "edge": ("firewall", "wireguard"),
+        "topology_event": "wireguard_rotate",
+        "mitre": {
+            "tactic": "Command and Control",
+            "technique": "T1572",
+            "name": "Protocol Tunneling",
+            "cve": None,
+        },
+        "cap": {
+            "directive": "generate_wireguard_keypair",
+            "entities": {
+                "HOSTNAME": ["vpn.lan"],
+                "IP_ADDRESS": [],
+                "IP_SUBNET": [],
+            },
+            "context": {
+                "source": "opnsense",
+                "reason": "vpn_pivot_detected",
+                "confidence": 0.84,
+                "trigger": "port_scan_subnet",
+            },
+        },
+        "expected_function": "generate_wireguard_keypair",
     },
 ]

@@ -8,13 +8,14 @@ export interface TopologyState {
 
 const INITIAL: TopologyState = {
   nodes: {
-    attacker: 'normal',
-    internet: 'normal',
-    firewall: 'normal',
-    crowdsec: 'normal',
-    dmz: 'normal',
+    attacker:  'normal',
+    internet:  'normal',
+    firewall:  'normal',
+    crowdsec:  'normal',
+    wireguard: 'normal',
+    dmz:       'normal',
     'srv-web': 'normal',
-    'srv-db': 'normal',
+    'srv-db':  'normal',
   },
 }
 
@@ -22,6 +23,7 @@ const EVENT_MAP: Record<string, Partial<Record<string, NodeStatus>>> = {
   crowdsec_ban:      { attacker: 'attacked', crowdsec: 'defended' },
   firewall_block:    { attacker: 'attacked', firewall: 'defended' },
   filter_rule_added: { attacker: 'attacked', firewall: 'defended', dmz: 'defended' },
+  wireguard_rotate:  { wireguard: 'defended' },
 }
 
 function createTopologyStore() {

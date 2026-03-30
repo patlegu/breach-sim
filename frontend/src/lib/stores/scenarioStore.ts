@@ -1,4 +1,4 @@
-import { writable, derived } from 'svelte/store'
+import { writable } from 'svelte/store'
 
 export type StepStatus = 'idle' | 'running' | 'done' | 'error'
 
@@ -6,37 +6,49 @@ export interface StepState {
   id: string
   status: StepStatus
   tokens: string[]
+  tokenCount: number
   toolCall: object | null
   raw: string
   latency: number | null
+  startedAt: number | null
 }
 
 export interface ScenarioStatus {
   status: 'idle' | 'running' | 'done' | 'error'
+  startedAt: number | null
   steps: Record<string, StepState>
 }
 
-const INITIAL_STEPS: Record<string, StepState> = {
-  step_1: { id: 'step_1', status: 'idle', tokens: [], toolCall: null, raw: '', latency: null },
-  step_2: { id: 'step_2', status: 'idle', tokens: [], toolCall: null, raw: '', latency: null },
-  step_3: { id: 'step_3', status: 'idle', tokens: [], toolCall: null, raw: '', latency: null },
+const STEP_IDS = ['step_1', 'step_2', 'step_3', 'step_4']
+
+function makeInitialSteps(): Record<string, StepState> {
+  return Object.fromEntries(
+    STEP_IDS.map(id => [
+      id,
+      { id, status: 'idle', tokens: [], tokenCount: 0, toolCall: null, raw: '', latency: null, startedAt: null },
+    ])
+  )
 }
 
 function createScenarioStore() {
   const { subscribe, set, update } = writable<ScenarioStatus>({
     status: 'idle',
-    steps: structuredClone(INITIAL_STEPS),
+    startedAt: null,
+    steps: makeInitialSteps(),
   })
 
   return {
     subscribe,
     setRunning() {
-      update(s => ({ ...s, status: 'running' }))
+      update(s => ({ ...s, status: 'running', startedAt: Date.now() }))
     },
     setStepRunning(stepId: string) {
       update(s => ({
         ...s,
-        steps: { ...s.steps, [stepId]: { ...s.steps[stepId], status: 'running', tokens: [] } },
+        steps: {
+          ...s.steps,
+          [stepId]: { ...s.steps[stepId], status: 'running', tokens: [], tokenCount: 0, startedAt: Date.now() },
+        },
       }))
     },
     appendToken(stepId: string, text: string) {
@@ -44,7 +56,11 @@ function createScenarioStore() {
         ...s,
         steps: {
           ...s.steps,
-          [stepId]: { ...s.steps[stepId], tokens: [...s.steps[stepId].tokens, text] },
+          [stepId]: {
+            ...s.steps[stepId],
+            tokens: [...s.steps[stepId].tokens, text],
+            tokenCount: s.steps[stepId].tokenCount + 1,
+          },
         },
       }))
     },
@@ -57,11 +73,11 @@ function createScenarioStore() {
     setDone() {
       update(s => ({ ...s, status: 'done' }))
     },
-    setError(message: string) {
+    setError(_message: string) {
       update(s => ({ ...s, status: 'error' }))
     },
     reset() {
-      set({ status: 'idle', steps: structuredClone(INITIAL_STEPS) })
+      set({ status: 'idle', startedAt: null, steps: makeInitialSteps() })
     },
   }
 }

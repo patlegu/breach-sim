@@ -146,12 +146,22 @@ def _parse_tool_call(text: str) -> dict | None:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+_MODEL_INFO = {
+    "opnsense":  {"name": "Qwen2.5-3B + OPNsense LoRA",  "precision": "int4", "repo": "patlegu/opnsense-qwen25-onnx-int4"},
+    "wireguard": {"name": "Qwen2.5-3B + WireGuard LoRA", "precision": "int4", "repo": "patlegu/wireguard-qwen25-onnx-int4"},
+    "crowdsec":  {"name": "Qwen2.5-3B + CrowdSec LoRA",  "precision": "int4", "repo": "patlegu/crowdsec-qwen25-onnx-int4"},
+}
+
+_ALL_AGENTS = ("opnsense", "wireguard", "crowdsec")
+
+
 @app.get("/api/health")
 async def health():
     return {
         "ready": runner.ready,
         "loaded": runner._loaded,
-        "pending": [a for a in ("opnsense", "wireguard", "crowdsec") if a not in runner._loaded],
+        "pending": [a for a in _ALL_AGENTS if a not in runner._loaded],
+        "models": _MODEL_INFO,
     }
 
 
@@ -165,6 +175,7 @@ async def get_scenario():
                 "agent": s["agent"],
                 "description": s["description"],
                 "cap": s["cap"],
+                "mitre": s.get("mitre"),
             }
             for s in SCENARIO_STEPS
         ]
