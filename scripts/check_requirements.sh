@@ -61,22 +61,39 @@ fi
 echo ""
 echo "── Node.js ─────────────────────────────"
 
+NODE_OK=false
+
+# Charger nvm si présent mais pas encore dans PATH
+if [ -z "$(command -v node)" ] && [ -s "${HOME}/.nvm/nvm.sh" ]; then
+  source "${HOME}/.nvm/nvm.sh"
+fi
+
 if command -v node &>/dev/null; then
   NODEVER=$(node --version | sed 's/v//')
   NODEMAJ=$(echo "$NODEVER" | cut -d. -f1)
   if [ "$NODEMAJ" -ge 18 ]; then
     ok "node ${NODEVER}"
+    NODE_OK=true
   else
     fail "node ${NODEVER} — version 18+ requise"
+    echo "     Installe une version récente via nvm :"
+    echo "       curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash"
+    echo "       source ~/.bashrc && nvm install 22"
   fi
 else
-  fail "node introuvable — installer : https://nodejs.org ou sudo apt install nodejs"
+  fail "node introuvable"
+  echo "     Option A — nvm (sans sudo, recommandé) :"
+  echo "       curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash"
+  echo "       source ~/.bashrc && nvm install 22"
+  echo "     Option B — NodeSource APT (système) :"
+  echo "       curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -"
+  echo "       sudo apt install -y nodejs"
 fi
 
-if command -v npm &>/dev/null; then
+if $NODE_OK && command -v npm &>/dev/null; then
   ok "npm $(npm --version)"
-else
-  fail "npm introuvable — installer avec Node.js"
+elif $NODE_OK; then
+  fail "npm introuvable malgré node — réinstalle Node.js"
 fi
 
 # ── Espace disque ─────────────────────────────────────────────────────────────
