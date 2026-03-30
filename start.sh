@@ -21,7 +21,12 @@ PORT="${PORT:-8888}"
 # Créer le venv si absent
 if [ ! -f "${VENV}/bin/activate" ]; then
   echo "📦 Création du venv Python..."
-  python3 -m venv "${VENV}"
+  if ! python3 -m venv "${VENV}" 2>/dev/null; then
+    PYVER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+    echo "❌ venv non disponible. Installe le paquet manquant :"
+    echo "   sudo apt install python${PYVER}-venv"
+    exit 1
+  fi
 fi
 
 source "${VENV}/bin/activate"

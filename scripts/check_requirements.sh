@@ -48,10 +48,13 @@ else
   fail "pip introuvable — installer : sudo apt install python3-pip"
 fi
 
-if python3 -m venv --help &>/dev/null 2>&1; then
+if python3 -m venv /tmp/_breach_venv_test &>/dev/null 2>&1; then
+  rm -rf /tmp/_breach_venv_test
   ok "venv disponible"
 else
-  fail "venv introuvable — installer : sudo apt install python3-venv"
+  rm -rf /tmp/_breach_venv_test
+  PYVER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+  fail "venv non fonctionnel — installer : sudo apt install python${PYVER}-venv"
 fi
 
 # ── Node.js ───────────────────────────────────────────────────────────────────
