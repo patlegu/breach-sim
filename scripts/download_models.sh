@@ -47,9 +47,14 @@ for entry in "${AGENTS[@]}"; do
   fi
 
   echo "⬇️  Téléchargement ${HF_USER}/${repo} → ${dest}..."
-  $PYTHON -m huggingface_hub download "${HF_USER}/${repo}" \
-    --repo-type model \
-    --local-dir "${dest}"
+  $PYTHON - <<PYEOF
+from huggingface_hub import snapshot_download
+snapshot_download(
+    repo_id="${HF_USER}/${repo}",
+    repo_type="model",
+    local_dir="${dest}",
+)
+PYEOF
 
   echo "✅ ${agent} téléchargé."
 done
