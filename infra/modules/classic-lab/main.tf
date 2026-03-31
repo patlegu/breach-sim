@@ -195,4 +195,11 @@ resource "libvirt_domain" "vm" {
 
   qemu_agent = true
   autostart  = true
+
+  lifecycle {
+    replace_triggered_by = [
+      libvirt_cloudinit_disk.vm[each.key],
+      libvirt_volume.vm[each.key],
+    ]
+  }
 }
