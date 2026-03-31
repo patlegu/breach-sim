@@ -107,64 +107,10 @@ resource "libvirt_volume" "opnsense" {
   depends_on = [terraform_data.opnsense_base_volume]
 }
 
-# ── Injection config.xml dans le volume OPNsense ─────────────────────────────
-# OPNsense nano a déjà un /conf/config.xml sur son filesystem principal.
-# L'approche ISO CD-ROM ne fonctionne pas (OPNsense ne le monte pas).
-# On utilise virt-customize pour écraser directement le fichier dans le qcow2
-# après création du volume CoW, avant le démarrage du domaine.
-# Prérequis : apt-get install -y libguestfs-tools
-
-locals {
-  config_xml_path = "${var.image_cache_dir}/breach-${var.instance_id}-opnsense-config.xml"
-  opnsense_vol_path = "/var/lib/libvirt/images/${local.name}.qcow2"
-}
-
-resource "terraform_data" "config_inject" {
-  input = sha256(templatefile("${path.module}/templates/config.xml.tftpl", {
-    lan_ip     = local.lan_ip
-    lan_prefix = local.lan_prefix
-    dhcp_from  = local.dhcp_from
-    dhcp_to    = local.dhcp_to
-    root_hash  = var.root_password_hash
-    ssh_key    = var.ssh_public_key
-    api_key    = var.api_key
-    api_secret = var.api_secret
-    hostname   = "opnsense-${var.instance_id}"
-  }))
-
-  provisioner "local-exec" {
-    command = <<-EOT
-      set -euo pipefail
-      mkdir -p "${var.image_cache_dir}"
-      cat > "${local.config_xml_path}" << 'XMLEOF'
-${templatefile("${path.module}/templates/config.xml.tftpl", {
-        lan_ip     = local.lan_ip
-        lan_prefix = local.lan_prefix
-        dhcp_from  = local.dhcp_from
-        dhcp_to    = local.dhcp_to
-        root_hash  = var.root_password_hash
-        ssh_key    = var.ssh_public_key
-        api_key    = var.api_key
-        api_secret = var.api_secret
-        hostname   = "opnsense-${var.instance_id}"
-      })}
-XMLEOF
-      echo "==> Injection config.xml dans /dev/sda4 (partition FreeBSD a5, UFS2)..."
-      # OPNsense nano : MBR + une seule partition a5 (FreeBSD) = /dev/sda4 dans guestfish
-      # guestfish sans -i n'appelle pas inspect_os/parted → compatible BSD disklabel
-      guestfish --format=qcow2 -a "${local.opnsense_vol_path}" \
-        run : \
-        mount-options "ufstype=ufs2" /dev/sda4 / : \
-        upload "${local.config_xml_path}" /conf/config.xml : \
-        umount /
-      echo "==> config.xml injecté."
-    EOT
-  }
-
-  depends_on = [libvirt_volume.opnsense]
-}
-
 # ── Domaine libvirt OPNsense ──────────────────────────────────────────────────
+# NOTE: config.xml non injecté automatiquement — UFS2 write désactivé dans le
+# kernel Debian (CONFIG_UFS_FS_WRITE not set). Configurer OPNsense manuellement
+# via console après le premier boot (voir scripts/configure-opnsense.sh).
 
 resource "libvirt_domain" "opnsense" {
   name   = local.name
@@ -175,7 +121,6 @@ resource "libvirt_domain" "opnsense" {
     mode = "host-passthrough"
   }
 
-  # Disque principal (config.xml injecté directement via virt-customize)
   disk {
     volume_id = libvirt_volume.opnsense.id
     scsi      = false
@@ -206,6 +151,4 @@ resource "libvirt_domain" "opnsense" {
   }
 
   autostart = true
-
-  depends_on = [terraform_data.config_inject]
 }
