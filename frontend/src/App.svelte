@@ -77,13 +77,13 @@
   async function handleReset() {
     errorMsg = ''
     await resetScenario()
-    if (currentScenario) scenarioStore.init(steps.map(s => s.id))
+    if (selectedId) await loadScenario(selectedId)
   }
 
   async function handleReplay() {
     errorMsg = ''
     await resetScenario()
-    if (currentScenario) scenarioStore.init(steps.map(s => s.id))
+    if (selectedId) await loadScenario(selectedId)
     await new Promise(r => setTimeout(r, 200))
     try { await triggerScenario(selectedId!) }
     catch (e: any) { errorMsg = e.message }
