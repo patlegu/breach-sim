@@ -12,7 +12,6 @@ output "infected_ip" {
 
 output "vm_ips" {
   value = {
-    for name, vm in libvirt_domain.vm :
-    name => vm.network_interface[0].addresses[0]
+    for name, vm in local.vms : name => vm.ip
   }
 }
