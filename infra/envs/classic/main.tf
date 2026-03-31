@@ -23,18 +23,13 @@ resource "terraform_data" "libvirt_pool" {
       set -euo pipefail
       VIRSH="virsh -c ${var.libvirt_uri}"
       POOL="${var.libvirt_pool}"
-      # Créer le pool s'il n'existe pas encore
       if ! $VIRSH pool-info "$POOL" >/dev/null 2>&1; then
         echo "==> Définition du pool libvirt '$POOL'..."
         $VIRSH pool-define-as "$POOL" dir --target /var/lib/libvirt/images
         $VIRSH pool-autostart "$POOL"
       fi
-      # Démarrer le pool s'il n'est pas actif (pool-start idempotent via || true)
-      if ! $VIRSH pool-info "$POOL" | grep -q "State:.*running"; then
-        echo "==> Démarrage du pool '$POOL'..."
-        $VIRSH pool-start "$POOL"
-      fi
-      echo "==> Pool '$POOL' actif."
+      $VIRSH pool-start "$POOL" 2>/dev/null || true
+      echo "==> Pool '$POOL' prêt."
     EOT
   }
 }
