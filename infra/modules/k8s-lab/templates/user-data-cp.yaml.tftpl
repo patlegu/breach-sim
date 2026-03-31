@@ -1,0 +1,177 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${hostname}.breach.local
+
+users:
+  - name: breach
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+package_update: true
+package_upgrade: false
+packages:
+  - curl
+  - jq
+  - qemu-guest-agent
+
+write_files:
+  # ── Manifestes K8s vulnérables (scénarios d'attaque) ─────────────────────
+  # Déployés manuellement par breach-sim selon le scénario actif.
+
+  # Scénario RBAC : pod avec ServiceAccount trop permissif
+  - path: /opt/breach/k8s/rbac-escape.yaml
+    permissions: '0644'
+    content: |
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: breach-admin
+        namespace: default
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: breach-admin-binding
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+        - kind: ServiceAccount
+          name: breach-admin
+          namespace: default
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: breach-attacker
+        namespace: default
+      spec:
+        serviceAccountName: breach-admin
+        containers:
+          - name: attacker
+            image: bitnami/kubectl:latest
+            command: ["sleep", "3600"]
+
+  # Scénario container escape : pod privileged avec hostPath
+  - path: /opt/breach/k8s/container-escape.yaml
+    permissions: '0644'
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: breach-escape
+        namespace: default
+      spec:
+        containers:
+          - name: escape
+            image: alpine:latest
+            command: ["sleep", "3600"]
+            securityContext:
+              privileged: true
+            volumeMounts:
+              - name: host-root
+                mountPath: /host
+        volumes:
+          - name: host-root
+            hostPath:
+              path: /
+
+  # Scénario NetworkPolicy bypass : pod sans labels de sélection
+  - path: /opt/breach/k8s/netpol-bypass.yaml
+    permissions: '0644'
+    content: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: deny-all
+        namespace: default
+      spec:
+        podSelector: {}
+        policyTypes: [Ingress, Egress]
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: breach-bypass
+        namespace: breach-bypass   # namespace sans NetworkPolicy
+        labels: {}
+      spec:
+        containers:
+          - name: scanner
+            image: alpine:latest
+            command: ["sh", "-c", "apk add nmap && sleep 3600"]
+
+  # Script de déploiement par scénario (appelé par breach-sim)
+  - path: /opt/breach/deploy-scenario.sh
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      # Usage: ./deploy-scenario.sh <rbac|escape|netpol>
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+      SCENARIO="${1:-rbac}"
+      case "$SCENARIO" in
+        rbac)
+          kubectl apply -f /opt/breach/k8s/rbac-escape.yaml
+          echo "RBAC déployé — pod breach-attacker avec cluster-admin"
+          ;;
+        escape)
+          kubectl apply -f /opt/breach/k8s/container-escape.yaml
+          echo "Container escape déployé — pod privileged avec hostPath /"
+          ;;
+        netpol)
+          kubectl create namespace breach-bypass --dry-run=client -o yaml | kubectl apply -f -
+          kubectl apply -f /opt/breach/k8s/netpol-bypass.yaml
+          echo "NetworkPolicy bypass déployé"
+          ;;
+        cleanup)
+          kubectl delete pod breach-attacker breach-escape breach-bypass \
+            --ignore-not-found 2>/dev/null || true
+          kubectl delete clusterrolebinding breach-admin-binding \
+            --ignore-not-found 2>/dev/null || true
+          kubectl delete namespace breach-bypass --ignore-not-found 2>/dev/null || true
+          echo "Nettoyage terminé"
+          ;;
+      esac
+
+runcmd:
+  - systemctl enable qemu-guest-agent && systemctl start qemu-guest-agent
+
+  # Installer k3s server
+  - |
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_VERSION="${k3s_version}" \
+      K3S_TOKEN="${k3s_token}" \
+      sh -s - server \
+        --node-ip="${cp_ip}" \
+        --advertise-address="${cp_ip}" \
+        --tls-san="${cp_ip}" \
+        --disable=traefik \
+        --write-kubeconfig-mode=644
+
+  # Attendre que l'API server soit prêt
+  - |
+    for i in $(seq 1 30); do
+      kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml get nodes &>/dev/null && break
+      echo "Attente API server ($i/30)..."
+      sleep 10
+    done
+
+  # Installer Tetragon (eBPF security) pour les scénarios K8s
+  - |
+    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    kubectl create namespace kube-system --dry-run=client -o yaml | kubectl apply -f -
+    curl -sfL https://get.helm.sh/helm-v3.17.0-linux-amd64.tar.gz | \
+      tar -xz -C /usr/local/bin --strip-components=1 linux-amd64/helm
+    helm repo add cilium https://helm.cilium.io
+    helm repo update
+    helm install tetragon cilium/tetragon \
+      --namespace kube-system \
+      --set tetragon.enablePolicyFilter=true \
+      --wait --timeout=5m || echo "Tetragon install failed — continuing"
+
+  - chmod +x /opt/breach/deploy-scenario.sh
+  - mkdir -p /opt/breach/k8s

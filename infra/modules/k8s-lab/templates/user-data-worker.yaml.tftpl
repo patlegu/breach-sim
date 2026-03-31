@@ -1,0 +1,39 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${hostname}.breach.local
+
+users:
+  - name: breach
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+package_update: true
+package_upgrade: false
+packages:
+  - curl
+  - jq
+  - qemu-guest-agent
+
+runcmd:
+  - systemctl enable qemu-guest-agent && systemctl start qemu-guest-agent
+
+  # Attendre que le CP soit prêt (le CP boot en parallèle)
+  - |
+    echo "Attente disponibilité CP ${cp_ip}:6443..."
+    for i in $(seq 1 30); do
+      curl -sk --max-time 3 https://${cp_ip}:6443/healthz &>/dev/null && break
+      echo "  tentative $i/30..."
+      sleep 10
+    done
+
+  # Rejoindre le cluster k3s
+  - |
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_VERSION="${k3s_version}" \
+      K3S_TOKEN="${k3s_token}" \
+      K3S_URL="https://${cp_ip}:6443" \
+      sh -s - agent \
+        --node-ip="$(hostname -I | awk '{print $1}')"
