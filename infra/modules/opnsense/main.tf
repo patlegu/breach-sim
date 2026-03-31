@@ -211,6 +211,27 @@ resource "libvirt_domain" "opnsense" {
     autoport    = true
   }
 
+  # Force le modèle e1000 pour les interfaces réseau :
+  # libvirt défaut sur virtio → vtnet0/vtnet1 sous FreeBSD,
+  # mais config.xml OPNsense utilise em0/em1 (nommage e1000).
+  xml {
+    xslt = <<-XSLT
+      <?xml version="1.0" ?>
+      <xsl:stylesheet version="1.0"
+          xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+        <xsl:output method="xml" omit-xml-declaration="yes"/>
+        <xsl:template match="@*|node()">
+          <xsl:copy>
+            <xsl:apply-templates select="@*|node()"/>
+          </xsl:copy>
+        </xsl:template>
+        <xsl:template match="interface/model/@type">
+          <xsl:attribute name="type">e1000</xsl:attribute>
+        </xsl:template>
+      </xsl:stylesheet>
+    XSLT
+  }
+
   autostart = true
 
   depends_on = [terraform_data.config_iso_file]
