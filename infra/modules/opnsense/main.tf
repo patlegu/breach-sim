@@ -126,15 +126,15 @@ resource "libvirt_domain" "opnsense" {
     scsi      = false
   }
 
-  # vtnet0 — WAN (wait_for_lease=false : OPNsense FreeBSD n'a pas de qemu-guest-agent)
+  # vtnet0 — LAN (OPNsense nano assigne vtnet0=LAN par défaut, on suit ce comportement)
   network_interface {
-    network_id     = var.wan_network_id
+    network_id     = var.lan_network_id
     wait_for_lease = false
   }
 
-  # vtnet1 — LAN
+  # vtnet1 — WAN
   network_interface {
-    network_id     = var.lan_network_id
+    network_id     = var.wan_network_id
     wait_for_lease = false
   }
 
