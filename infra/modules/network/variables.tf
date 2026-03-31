@@ -1,3 +1,8 @@
+variable "libvirt_uri" {
+  type    = string
+  default = "qemu:///system"
+}
+
 variable "instance_id" {
   description = "Identifiant unique du lab (1, 2, …). Différencie les bridges et subnets."
   type        = number

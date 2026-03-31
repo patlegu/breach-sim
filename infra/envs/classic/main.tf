@@ -40,6 +40,7 @@ module "network" {
   source = "../../modules/network"
 
   instance_id = var.instance_id
+  libvirt_uri = var.libvirt_uri
   wan_cidr    = "10.0.${var.instance_id}.0/24"
   lan_cidr    = "192.168.${10 + var.instance_id}.0/24"
 }

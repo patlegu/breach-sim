@@ -52,3 +52,23 @@ resource "libvirt_network" "lan" {
     enabled = false    # OPNsense gère le DHCP
   }
 }
+
+# Le bridge libvirt active STP par défaut, ce qui bloque les ports ~30s après
+# chaque (re)création de VM. On le désactive pour un lab.
+resource "terraform_data" "lan_stp_off" {
+  input = var.libvirt_uri
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -euo pipefail
+      BRIDGE=$(virsh -c ${var.libvirt_uri} net-info breach-${var.instance_id}-lan \
+        | awk '/Bridge:/{print $2}')
+      if [ -n "$BRIDGE" ]; then
+        echo "==> Désactivation STP sur bridge $BRIDGE"
+        brctl stp "$BRIDGE" off
+      fi
+    EOT
+  }
+
+  depends_on = [libvirt_network.lan]
+}
