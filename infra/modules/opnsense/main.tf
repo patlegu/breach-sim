@@ -126,15 +126,15 @@ resource "libvirt_domain" "opnsense" {
     scsi      = false
   }
 
-  # vtnet0 — LAN (OPNsense nano assigne vtnet0=LAN par défaut, on suit ce comportement)
+  # vtnet0 — WAN (OPNsense nano défaut : vtnet0=WAN, vtnet1=LAN)
   network_interface {
-    network_id     = var.lan_network_id
+    network_id     = var.wan_network_id
     wait_for_lease = false
   }
 
-  # vtnet1 — WAN
+  # vtnet1 — LAN
   network_interface {
-    network_id     = var.wan_network_id
+    network_id     = var.lan_network_id
     wait_for_lease = false
   }
 
