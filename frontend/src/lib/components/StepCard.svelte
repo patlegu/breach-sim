@@ -36,12 +36,16 @@
     return JSON.stringify(obj, null, 2)
   }
 
+  // Passage unique : évite que le regex des nombres matche les chiffres des class CSS
+  const JSON_RE = /("(?:\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(?=\s*:))|("(?:\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")|([-]?\b\d+\.?\d*\b)|\b(true|false|null)\b/g
+
   function highlightJson(str: string): string {
-    return str
-      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(?=\s*:))/g, '<span class="text-blue-300">$1</span>')
-      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")/g, '<span class="text-green-300">$1</span>')
-      .replace(/\b(\d+\.?\d*)\b/g, '<span class="text-amber-300">$1</span>')
-      .replace(/\b(true|false|null)\b/g, '<span class="text-red-300">$1</span>')
+    return str.replace(JSON_RE, (m, key, val, num, _kw) => {
+      if (key !== undefined) return `<span class="text-blue-300">${m}</span>`
+      if (val !== undefined) return `<span class="text-green-300">${m}</span>`
+      if (num !== undefined) return `<span class="text-amber-300">${m}</span>`
+      return `<span class="text-red-300">${m}</span>`
+    })
   }
 </script>
 
