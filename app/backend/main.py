@@ -29,6 +29,8 @@ from pydantic import BaseModel
 
 from .onnx_runner import OnnxRunner
 from .scenario import SCENARIOS, SCENARIO_ORDER
+from .lab import lab as _lab
+from .executor import execute_tool_call, trigger_attack
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s — %(message)s")
 logger = logging.getLogger(__name__)
@@ -91,6 +93,12 @@ async def _run_scenario_task(scenario_id: str) -> None:
             if _stop_event.is_set():
                 break
 
+            # Mode live : déclencher l'attaque réelle sur "infected" avant l'inférence
+            if _lab.live:
+                attack_output = await trigger_attack(_lab, scenario_id, step["id"])
+                if attack_output:
+                    logger.info("Attaque déclenchée [%s/%s]: %s", scenario_id, step["id"], attack_output[:100])
+
             await _broadcast({
                 "type": "step_start",
                 "step_id": step["id"],
@@ -119,12 +127,20 @@ async def _run_scenario_task(scenario_id: str) -> None:
 
             tool_call = _parse_tool_call(full_text)
 
+            # Mode live : exécuter le tool call contre les vraies APIs
+            execution_result = None
+            if _lab.live and tool_call:
+                execution_result = await execute_tool_call(_lab, step["agent"], tool_call)
+                if execution_result:
+                    logger.info("Tool call exécuté [%s]: %s", step["agent"], execution_result)
+
             await _broadcast({
                 "type": "step_done",
                 "step_id": step["id"],
                 "tool_call": tool_call,
                 "raw": full_text.strip(),
                 "latency_s": round(latency, 2),
+                "execution": execution_result,
             })
 
             await _broadcast({
@@ -176,6 +192,22 @@ def _parse_tool_call(text: str) -> dict | None:
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/lab")
+async def get_lab():
+    """État du lab actif — IPs, mode live, type."""
+    return {
+        "live": _lab.live,
+        "lab_type": _lab.lab_type,
+        "instance": _lab.instance,
+        "opnsense_ip": _lab.opnsense_ip,
+        "infected_ip": _lab.infected_ip,
+        "srv_web_ip": _lab.srv_web_ip,
+        "srv_db_ip": _lab.srv_db_ip,
+        "k3s_cp_ip": _lab.k3s_cp_ip if _lab.lab_type == "k8s" else None,
+        "crowdsec_ip": _lab.crowdsec_ip,
+    }
+
 
 @app.get("/api/health")
 async def health():
