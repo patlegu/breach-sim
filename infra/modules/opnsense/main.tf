@@ -213,5 +213,5 @@ resource "libvirt_domain" "opnsense" {
 
   autostart = true
 
-  depends_on = [terraform_data.config_iso]
+  depends_on = [terraform_data.config_iso_file]
 }
