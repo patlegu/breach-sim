@@ -40,15 +40,15 @@
           { id: 'infected',  label: `👤 192.168.2.15\nPoste infecté`, x: 390, y: 470 },
         ],
         edges: [
-          { id: 'e-atk-net',  source: 'attacker',  target: 'internet'  },
-          { id: 'e-net-fw',   source: 'internet',  target: 'firewall'  },
+          { id: 'e-atk-net',  source: 'internet',  target: 'attacker'  }, // sortant vers C2
+          { id: 'e-net-fw',   source: 'firewall',  target: 'internet'  }, // sortant
           { id: 'e-fw-cs',    source: 'firewall',  target: 'crowdsec'  },
           { id: 'e-fw-wg',    source: 'firewall',  target: 'wireguard' },
           { id: 'e-fw-dmz',   source: 'firewall',  target: 'dmz'       },
-          { id: 'e-fw-lan',   source: 'firewall',  target: 'lan'       },
+          { id: 'e-fw-lan',   source: 'lan',       target: 'firewall'  }, // sortant
           { id: 'e-dmz-web',  source: 'dmz',       target: 'srv-web'   },
           { id: 'e-dmz-db',   source: 'dmz',       target: 'srv-db'    },
-          { id: 'e-lan-inf',  source: 'lan',       target: 'infected'  },
+          { id: 'e-lan-inf',  source: 'infected',  target: 'lan'       }, // sortant du poste
           { id: 'e-inf-wg',   source: 'infected',  target: 'wireguard' },
         ],
         hiddenEdges: ['e-inf-wg'],
