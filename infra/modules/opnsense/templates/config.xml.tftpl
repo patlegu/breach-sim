@@ -71,20 +71,20 @@
 
   <!-- Interfaces réseau -->
   <interfaces>
-    <!-- WAN — vtnet1 (OPNsense nano défaut : vtnet0=LAN, vtnet1=WAN) -->
+    <!-- WAN — vtnet0 (première interface libvirt → premier vtnet KVM) -->
     <wan>
       <enable>1</enable>
-      <if>vtnet1</if>
+      <if>vtnet0</if>
       <descr>WAN</descr>
       <ipaddr>dhcp</ipaddr>
       <ipaddrv6>dhcp6</ipaddrv6>
       <blockbogons>1</blockbogons>
     </wan>
 
-    <!-- LAN — vtnet0 (OPNsense nano défaut : vtnet0=LAN, vtnet1=WAN) -->
+    <!-- LAN — vtnet1 (deuxième interface libvirt → deuxième vtnet KVM) -->
     <lan>
       <enable>1</enable>
-      <if>vtnet0</if>
+      <if>vtnet1</if>
       <descr>LAN</descr>
       <ipaddr>${lan_ip}</ipaddr>
       <subnet>${lan_prefix}</subnet>

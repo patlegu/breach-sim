@@ -2,31 +2,28 @@
 #
 # VM OPNsense sur KVM/libvirt.
 #
-# Interfaces :
-#   em0 → WAN (NAT libvirt, DHCP)
-#   em1 → LAN (isolated, IP statique configurée via config XML OPNsense)
+# Interfaces (ordre libvirt → vtnet KVM) :
+#   vtnet0 → WAN (NAT libvirt, DHCP) — première interface du domaine
+#   vtnet1 → LAN (isolated, IP statique configurée via config.xml)
 #
 # Bootstrap :
-#   OPNsense ne supporte pas cloud-init. On injecte la config initiale via
-#   une image "config drive" au format ISO (libvirt_cloudinit_disk avec
-#   type = "nocloud" n'est pas compatible FreeBSD — on utilise un volume
-#   raw contenant /conf/config.xml monté comme CD-ROM).
+#   OPNsense ne supporte pas cloud-init. La config est injectée via SSH
+#   après le premier boot : config.xml est rendu localement puis poussé
+#   via SCP sur /conf/config.xml, suivi d'un rechargement des services.
 #
-#   À la première installation, OPNsense lit /conf/config.xml depuis le
-#   CD-ROM de configuration si présent. Ce fichier pré-configure :
-#     - IP LAN (em1) statique
-#     - mot de passe root (hashé SHA512)
-#     - clé SSH autorisée
-#     - API key + secret (pour le REST API)
-#     - plugins CrowdSec + WireGuard listés dans le fichier de config
-#
-# Après le premier boot, la config est persistée sur le disque OPNsense.
+#   Premier déploiement : activer SSH manuellement via la console OPNsense
+#   (menu option 14 ou /usr/sbin/sshd), ajouter la clé SSH de korrig dans
+#   /root/.ssh/authorized_keys, puis relancer `tofu apply`.
 
 terraform {
   required_providers {
     libvirt = {
       source  = "dmacvicar/libvirt"
       version = "~> 0.8.0"
+    }
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.5"
     }
   }
 }
@@ -37,6 +34,18 @@ locals {
   lan_prefix = split("/", var.lan_cidr)[1]
   dhcp_from  = cidrhost(var.lan_cidr, 10)
   dhcp_to    = cidrhost(var.lan_cidr, 99)
+
+  config_xml = templatefile("${path.module}/templates/config.xml.tftpl", {
+    hostname   = "breach${var.instance_id}-opnsense"
+    root_hash  = var.root_password_hash
+    ssh_key    = var.ssh_public_key
+    api_key    = var.api_key
+    api_secret = var.api_secret
+    lan_ip     = local.lan_ip
+    lan_prefix = local.lan_prefix
+    dhcp_from  = local.dhcp_from
+    dhcp_to    = local.dhcp_to
+  })
 }
 
 # ── Image de base OPNsense (qcow2) ───────────────────────────────────────────
@@ -107,10 +116,14 @@ resource "libvirt_volume" "opnsense" {
   depends_on = [terraform_data.opnsense_base_volume]
 }
 
+# ── Rendu config.xml (local) ─────────────────────────────────────────────────
+
+resource "local_sensitive_file" "opnsense_config" {
+  content  = local.config_xml
+  filename = "/tmp/breach-${var.instance_id}-opnsense-config.xml"
+}
+
 # ── Domaine libvirt OPNsense ──────────────────────────────────────────────────
-# NOTE: config.xml non injecté automatiquement — UFS2 write désactivé dans le
-# kernel Debian (CONFIG_UFS_FS_WRITE not set). Configurer OPNsense manuellement
-# via console après le premier boot (voir scripts/configure-opnsense.sh).
 
 resource "libvirt_domain" "opnsense" {
   name   = local.name
@@ -151,4 +164,45 @@ resource "libvirt_domain" "opnsense" {
   }
 
   autostart = true
+}
+
+# ── Push config.xml via SSH ───────────────────────────────────────────────────
+# Pousse config.xml sur OPNsense et recharge les services dès que le contenu
+# change. Prérequis bootstrap (premier déploiement uniquement) :
+#   1. Activer SSH sur OPNsense via la console (option 14 du menu)
+#   2. Ajouter la clé SSH de korrig dans /root/.ssh/authorized_keys
+#   3. Relancer `tofu apply`
+
+resource "terraform_data" "opnsense_config_push" {
+  triggers_replace = sha256(local.config_xml)
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -euo pipefail
+      LAN_IP="${local.lan_ip}"
+      CFG="${local_sensitive_file.opnsense_config.filename}"
+      SSH_OPTS="-o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5"
+
+      echo "==> Attente SSH OPNsense ($LAN_IP)..."
+      for i in $(seq 1 30); do
+        if ssh $SSH_OPTS root@$LAN_IP true 2>/dev/null; then
+          echo "==> SSH disponible (tentative $i)"
+          break
+        fi
+        echo "  tentative $i/30, retry dans 10s..."
+        sleep 10
+      done
+
+      echo "==> Push config.xml..."
+      scp $SSH_OPTS "$CFG" root@$LAN_IP:/conf/config.xml
+
+      echo "==> Rechargement config OPNsense..."
+      ssh $SSH_OPTS root@$LAN_IP \
+        "configctl filter reload; /usr/local/sbin/pluginctl -s openssh restart" || true
+
+      echo "==> Config OPNsense appliquée."
+    EOT
+  }
+
+  depends_on = [libvirt_domain.opnsense, local_sensitive_file.opnsense_config]
 }
