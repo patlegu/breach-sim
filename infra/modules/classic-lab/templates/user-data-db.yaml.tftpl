@@ -1,0 +1,51 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${hostname}.breach.local
+
+users:
+  - name: breach
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+package_update: true
+package_upgrade: false
+packages:
+  - postgresql
+  - postgresql-client
+  - curl
+  - jq
+  - qemu-guest-agent
+
+write_files:
+  # Autoriser les connexions depuis le LAN (pour simulation log4shell → db)
+  - path: /etc/postgresql/15/main/pg_hba.conf
+    content: |
+      local   all   postgres   peer
+      local   all   all        md5
+      host    all   all        192.168.0.0/16   md5
+    permissions: '0640'
+    owner: postgres:postgres
+
+  - path: /etc/postgresql/15/main/conf.d/breach.conf
+    content: |
+      listen_addresses = '*'
+      log_connections = on
+      log_disconnections = on
+    permissions: '0640'
+    owner: postgres:postgres
+
+runcmd:
+  - systemctl enable qemu-guest-agent && systemctl start qemu-guest-agent
+  - systemctl enable postgresql && systemctl start postgresql
+  # Créer une base de démo avec des "données sensibles" simulées
+  - |
+    sudo -u postgres psql -c "CREATE DATABASE breach_demo;"
+    sudo -u postgres psql -d breach_demo -c "
+      CREATE TABLE users (id serial PRIMARY KEY, username text, email text, password_hash text);
+      INSERT INTO users VALUES (1,'admin','admin@breach.local','\$2b\$12\$fake_hash_for_demo');
+      INSERT INTO users VALUES (2,'user1','user1@breach.local','\$2b\$12\$fake_hash_for_demo');
+    "
+  - systemctl restart postgresql

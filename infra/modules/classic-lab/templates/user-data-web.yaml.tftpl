@@ -1,0 +1,53 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${hostname}.breach.local
+
+users:
+  - name: breach
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+package_update: true
+package_upgrade: false
+packages:
+  - nginx
+  - curl
+  - jq
+  - qemu-guest-agent
+
+write_files:
+  - path: /var/www/html/index.html
+    content: |
+      <!DOCTYPE html>
+      <html>
+      <head><title>srv-web breach-${instance_id}</title></head>
+      <body>
+        <h1>srv-web</h1>
+        <p>Lab breach-sim #${instance_id}</p>
+        <p>IP : $(hostname -I | awk '{print $1}')</p>
+      </body>
+      </html>
+    permissions: '0644'
+
+  # Endpoint /health pour les checks breach-sim
+  - path: /etc/nginx/sites-available/breach
+    content: |
+      server {
+          listen 80 default_server;
+          root /var/www/html;
+          index index.html;
+
+          location /health {
+              return 200 '{"status":"ok","host":"${hostname}"}';
+              add_header Content-Type application/json;
+          }
+      }
+    permissions: '0644'
+
+runcmd:
+  - systemctl enable qemu-guest-agent && systemctl start qemu-guest-agent
+  - ln -sf /etc/nginx/sites-available/breach /etc/nginx/sites-enabled/default
+  - systemctl enable nginx && systemctl restart nginx

