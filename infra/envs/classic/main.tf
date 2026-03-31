@@ -11,6 +11,14 @@ provider "libvirt" {
   uri = var.libvirt_uri
 }
 
+# ── Pool de stockage libvirt ──────────────────────────────────────────────────
+
+resource "libvirt_pool" "images" {
+  name = var.libvirt_pool
+  type = "dir"
+  path = "/var/lib/libvirt/images"
+}
+
 # ── Réseau ────────────────────────────────────────────────────────────────────
 
 module "network" {
@@ -28,7 +36,7 @@ module "opnsense" {
 
   instance_id        = var.instance_id
   libvirt_uri        = var.libvirt_uri
-  libvirt_pool       = var.libvirt_pool
+  libvirt_pool       = libvirt_pool.images.name
   wan_network_id     = module.network.wan_network_id
   lan_network_id     = module.network.lan_network_id
   lan_cidr           = module.network.lan_cidr
@@ -47,7 +55,7 @@ module "classic_lab" {
 
   instance_id    = var.instance_id
   libvirt_uri    = var.libvirt_uri
-  libvirt_pool   = var.libvirt_pool
+  libvirt_pool   = libvirt_pool.images.name
   lan_network_id = module.network.lan_network_id
   lan_cidr       = module.network.lan_cidr
   ssh_public_key = var.ssh_public_key
