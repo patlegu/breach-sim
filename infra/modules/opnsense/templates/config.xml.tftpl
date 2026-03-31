@@ -1,0 +1,145 @@
+<?xml version="1.0"?>
+<opnsense>
+  <version>25.1</version>
+  <theme>opnsense</theme>
+  <sysctl>
+    <item>
+      <descr>Disable the pf block logging</descr>
+      <tunable>net.pf.log_debug</tunable>
+      <value>0</value>
+    </item>
+  </sysctl>
+  <system>
+    <hostname>${hostname}</hostname>
+    <domain>breach.local</domain>
+    <timezone>Europe/Paris</timezone>
+    <timeservers>0.pool.ntp.org</timeservers>
+    <language>en_US</language>
+    <dnsserver>1.1.1.1</dnsserver>
+    <dnsserver>8.8.8.8</dnsserver>
+    <dnslocalhost>local</dnslocalhost>
+
+    <!-- Mot de passe root (hash SHA512 — openssl passwd -6) -->
+    <rootcredential>${root_hash}</rootcredential>
+
+    <!-- Clé SSH autorisée -->
+    <user>
+      <name>root</name>
+      <descr>System Administrator</descr>
+      <scope>system</scope>
+      <groupname>admins</groupname>
+      <password>${root_hash}</password>
+      <uid>0</uid>
+      <shell>/bin/sh</shell>
+      <authorizedkeys>${base64encode(ssh_key)}</authorizedkeys>
+    </user>
+
+    <!-- API REST key/secret -->
+    <user>
+      <name>breachsim</name>
+      <descr>breach-sim API user</descr>
+      <scope>user</scope>
+      <groupname>admins</groupname>
+      <password>*</password>
+      <uid>2000</uid>
+      <shell>/sbin/nologin</shell>
+      <apikeys>
+        <item>
+          <key>${api_key}</key>
+          <secret>${api_secret}</secret>
+        </item>
+      </apikeys>
+    </user>
+
+    <group>
+      <name>admins</name>
+      <description>System Administrators</description>
+      <scope>system</scope>
+      <gid>1999</gid>
+      <member>0</member>
+      <member>2000</member>
+      <priv>page-all</priv>
+    </group>
+
+    <ssh>
+      <enabled>enabled</enabled>
+      <port>22</port>
+      <permitrootlogin>1</permitrootlogin>
+      <authenticationmethod>publickey</authenticationmethod>
+    </ssh>
+  </system>
+
+  <!-- Interfaces réseau -->
+  <interfaces>
+    <!-- WAN — em0, DHCP -->
+    <wan>
+      <enable>1</enable>
+      <if>em0</if>
+      <descr>WAN</descr>
+      <ipaddr>dhcp</ipaddr>
+      <ipaddrv6>dhcp6</ipaddrv6>
+      <blockbogons>1</blockbogons>
+    </wan>
+
+    <!-- LAN — em1, IP statique -->
+    <lan>
+      <enable>1</enable>
+      <if>em1</if>
+      <descr>LAN</descr>
+      <ipaddr>${lan_ip}</ipaddr>
+      <subnet>${lan_prefix}</subnet>
+      <ipaddrv6>track6</ipaddrv6>
+      <subnetv6>64</subnetv6>
+    </lan>
+  </interfaces>
+
+  <!-- DHCP server LAN -->
+  <dhcpd>
+    <lan>
+      <enable>1</enable>
+      <range>
+        <from>${cidrhost(lan_ip + "/" + lan_prefix, 10)}</from>
+        <to>${cidrhost(lan_ip + "/" + lan_prefix, 99)}</to>
+      </range>
+      <defaultleasetime>7200</defaultleasetime>
+      <maxleasetime>86400</maxleasetime>
+    </lan>
+  </dhcpd>
+
+  <!-- NAT sortant (masquerade LAN → WAN) -->
+  <nat>
+    <outbound>
+      <mode>automatic</mode>
+    </outbound>
+  </nat>
+
+  <!-- Règles firewall de base -->
+  <filter>
+    <rule>
+      <type>pass</type>
+      <interface>lan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>any</protocol>
+      <source><network>lan</network></source>
+      <destination><any/></destination>
+      <descr>LAN to any</descr>
+    </rule>
+    <rule>
+      <type>pass</type>
+      <interface>wan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source><any/></source>
+      <destination><any/><port>443</port></destination>
+      <descr>Allow HTTPS API access from WAN</descr>
+    </rule>
+  </filter>
+
+  <!-- Plugins à installer au premier boot -->
+  <OPNsense>
+    <firmware>
+      <plugins>os-crowdsec,os-wireguard</plugins>
+    </firmware>
+  </OPNsense>
+
+</opnsense>

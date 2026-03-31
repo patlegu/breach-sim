@@ -1,0 +1,12 @@
+# Copier en terraform.tfvars et remplir avant make lab-up
+
+instance_id = 1
+
+ssh_public_key = "ssh-ed25519 AAAA... pat@host"
+
+# openssl passwd -6 'monmotdepasse'
+opnsense_root_hash = "$6$rounds=5000$..."
+
+# openssl rand -hex 40
+opnsense_api_key    = ""
+opnsense_api_secret = ""
