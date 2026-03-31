@@ -70,7 +70,8 @@ resource "terraform_data" "debian_base" {
 }
 
 resource "terraform_data" "debian_base_volume" {
-  input = var.debian_image_url
+  # input stocke uri+pool pour les utiliser dans le destroy provisioner via self.input
+  input = "${var.libvirt_uri}|${var.libvirt_pool}|${var.image_cache_dir}"
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -87,7 +88,11 @@ resource "terraform_data" "debian_base_volume" {
 
   provisioner "local-exec" {
     when    = destroy
-    command = "virsh -c ${var.libvirt_uri} vol-delete --pool ${var.libvirt_pool} debian-base.qcow2 2>/dev/null || true"
+    command = <<-EOT
+      URI=$(echo "${self.input}" | cut -d'|' -f1)
+      POOL=$(echo "${self.input}" | cut -d'|' -f2)
+      virsh -c "$URI" vol-delete --pool "$POOL" debian-base.qcow2 2>/dev/null || true
+    EOT
   }
 
   depends_on = [terraform_data.debian_base]

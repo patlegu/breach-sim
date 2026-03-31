@@ -65,7 +65,7 @@ resource "terraform_data" "opnsense_base" {
 }
 
 resource "terraform_data" "opnsense_base_volume" {
-  input = var.opnsense_image_url
+  input = "${var.libvirt_uri}|${var.libvirt_pool}|${var.image_cache_dir}"
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -82,7 +82,11 @@ resource "terraform_data" "opnsense_base_volume" {
 
   provisioner "local-exec" {
     when    = destroy
-    command = "virsh -c ${var.libvirt_uri} vol-delete --pool ${var.libvirt_pool} opnsense-base.qcow2 2>/dev/null || true"
+    command = <<-EOT
+      URI=$(echo "${self.input}" | cut -d'|' -f1)
+      POOL=$(echo "${self.input}" | cut -d'|' -f2)
+      virsh -c "$URI" vol-delete --pool "$POOL" opnsense-base.qcow2 2>/dev/null || true
+    EOT
   }
 
   depends_on = [terraform_data.opnsense_base]
@@ -106,15 +110,8 @@ resource "libvirt_volume" "opnsense" {
 # Monté comme CD-ROM au premier boot.
 
 resource "terraform_data" "config_iso" {
-  input = {
-    lan_ip      = local.lan_ip
-    lan_prefix  = local.lan_prefix
-    root_hash   = var.root_password_hash
-    ssh_key     = var.ssh_public_key
-    api_key     = var.api_key
-    api_secret  = var.api_secret
-    instance_id = var.instance_id
-  }
+  # uri|pool|instance_id pour le destroy provisioner (self.input uniquement)
+  input = "${var.libvirt_uri}|${var.libvirt_pool}|${var.instance_id}"
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -152,8 +149,11 @@ XMLEOF
   provisioner "local-exec" {
     when    = destroy
     command = <<-EOT
-      virsh -c ${var.libvirt_uri} vol-delete --pool ${var.libvirt_pool} \
-        breach-${var.instance_id}-opnsense-conf.iso 2>/dev/null || true
+      URI=$(echo "${self.input}" | cut -d'|' -f1)
+      POOL=$(echo "${self.input}" | cut -d'|' -f2)
+      INST=$(echo "${self.input}" | cut -d'|' -f3)
+      virsh -c "$URI" vol-delete --pool "$POOL" \
+        "breach-$INST-opnsense-conf.iso" 2>/dev/null || true
     EOT
   }
 }
