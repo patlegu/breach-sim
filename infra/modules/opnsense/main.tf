@@ -149,16 +149,12 @@ ${templatefile("${path.module}/templates/config.xml.tftpl", {
         hostname   = "opnsense-${var.instance_id}"
       })}
 XMLEOF
-      echo "==> Détection du filesystem OPNsense (blkid, pas parted)..."
+      echo "==> Injection config.xml dans /dev/sda4 (partition FreeBSD a5, UFS2)..."
+      # OPNsense nano : MBR + une seule partition a5 (FreeBSD) = /dev/sda4 dans guestfish
       # guestfish sans -i n'appelle pas inspect_os/parted → compatible BSD disklabel
-      DEVICE=$(guestfish --format=qcow2 -a "${local.opnsense_vol_path}" \
-        run : list-filesystems 2>/dev/null \
-        | grep -v "swap\|unknown" | head -1 | awk '{print $1}' | tr -d ':')
-      [ -z "$DEVICE" ] && DEVICE="/dev/sda"
-      echo "==> Injection config.xml dans $DEVICE..."
       guestfish --format=qcow2 -a "${local.opnsense_vol_path}" \
         run : \
-        mount-options "ufstype=ufs2" "$DEVICE" / : \
+        mount-options "ufstype=ufs2" /dev/sda4 / : \
         upload "${local.config_xml_path}" /conf/config.xml : \
         umount /
       echo "==> config.xml injecté."
