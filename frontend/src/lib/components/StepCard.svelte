@@ -32,8 +32,18 @@
     'Command and Control': 'text-violet-300 bg-violet-950 border-violet-800',
   }
 
+  function expandJson(v: unknown): unknown {
+    if (typeof v === 'string') {
+      try { return expandJson(JSON.parse(v)) } catch { return v }
+    }
+    if (Array.isArray(v)) return v.map(expandJson)
+    if (v && typeof v === 'object')
+      return Object.fromEntries(Object.entries(v).map(([k, val]) => [k, expandJson(val)]))
+    return v
+  }
+
   function formatJson(obj: object): string {
-    return JSON.stringify(obj, null, 2)
+    return JSON.stringify(expandJson(obj), null, 2)
   }
 
   // Passage unique : évite que le regex des nombres matche les chiffres des class CSS
