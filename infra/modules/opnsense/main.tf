@@ -108,19 +108,33 @@ resource "libvirt_volume" "opnsense" {
 }
 
 # ── Config drive ISO (config.xml initial) ─────────────────────────────────────
-# Génère l'ISO de configuration OPNsense avec config.xml pré-rempli.
-# Monté comme CD-ROM au premier boot.
+# Génère l'ISO de configuration OPNsense avec config.xml pré-rempli,
+# puis l'importe dans libvirt via libvirt_volume (source = fichier local).
 
-resource "terraform_data" "config_iso" {
-  # uri|pool|instance_id pour le destroy provisioner (self.input uniquement)
-  input = "${var.libvirt_uri}|${var.libvirt_pool}|${var.instance_id}"
+locals {
+  config_iso_path = "${var.image_cache_dir}/breach-${var.instance_id}-opnsense-conf.iso"
+}
+
+resource "terraform_data" "config_iso_file" {
+  # Recrée l'ISO si l'un des paramètres de config change
+  input = sha256(templatefile("${path.module}/templates/config.xml.tftpl", {
+    lan_ip      = local.lan_ip
+    lan_prefix  = local.lan_prefix
+    dhcp_from   = local.dhcp_from
+    dhcp_to     = local.dhcp_to
+    root_hash   = var.root_password_hash
+    ssh_key     = var.ssh_public_key
+    api_key     = var.api_key
+    api_secret  = var.api_secret
+    hostname    = "opnsense-${var.instance_id}"
+  }))
 
   provisioner "local-exec" {
     command = <<-EOT
       set -euo pipefail
+      mkdir -p "${var.image_cache_dir}"
       WORKDIR=$(mktemp -d)
       mkdir -p "$WORKDIR/conf"
-
       cat > "$WORKDIR/conf/config.xml" << 'XMLEOF'
 ${templatefile("${path.module}/templates/config.xml.tftpl", {
         lan_ip      = local.lan_ip
@@ -134,40 +148,20 @@ ${templatefile("${path.module}/templates/config.xml.tftpl", {
         hostname    = "opnsense-${var.instance_id}"
       })}
 XMLEOF
-
-      ISO="${var.image_cache_dir}/breach-${var.instance_id}-opnsense-conf.iso"
-      mkisofs -o "$ISO" -r -J "$WORKDIR"
+      mkisofs -o "${local.config_iso_path}" -r -J "$WORKDIR"
       rm -rf "$WORKDIR"
-      echo "==> Config ISO générée : $ISO"
-
-      VIRSH="virsh -c ${var.libvirt_uri}"
-      VOLNAME="breach-${var.instance_id}-opnsense-conf.iso"
-      if $VIRSH vol-info --pool ${var.libvirt_pool} "$VOLNAME" >/dev/null 2>&1; then
-        $VIRSH vol-delete --pool ${var.libvirt_pool} "$VOLNAME"
-      fi
-      $VIRSH vol-create-as ${var.libvirt_pool} "$VOLNAME" 10M --format raw
-      $VIRSH vol-upload --pool ${var.libvirt_pool} "$VOLNAME" "$ISO"
-    EOT
-  }
-
-  provisioner "local-exec" {
-    when    = destroy
-    command = <<-EOT
-      URI=$(echo "${self.input}" | cut -d'|' -f1)
-      POOL=$(echo "${self.input}" | cut -d'|' -f2)
-      INST=$(echo "${self.input}" | cut -d'|' -f3)
-      virsh -c "$URI" vol-delete --pool "$POOL" \
-        "breach-$INST-opnsense-conf.iso" 2>/dev/null || true
+      echo "==> Config ISO générée : ${local.config_iso_path}"
     EOT
   }
 }
 
-# Référence au volume ISO dans libvirt
-data "libvirt_volume" "config_iso" {
-  name = "breach-${var.instance_id}-opnsense-conf.iso"
-  pool = var.libvirt_pool
+resource "libvirt_volume" "config_iso" {
+  name   = "breach-${var.instance_id}-opnsense-conf.iso"
+  pool   = var.libvirt_pool
+  source = local.config_iso_path
+  format = "raw"
 
-  depends_on = [terraform_data.config_iso]
+  depends_on = [terraform_data.config_iso_file]
 }
 
 # ── Domaine libvirt OPNsense ──────────────────────────────────────────────────
@@ -189,7 +183,7 @@ resource "libvirt_domain" "opnsense" {
 
   # CD-ROM config (éjecté après premier boot — OPNsense persiste la config)
   disk {
-    volume_id = data.libvirt_volume.config_iso.id
+    volume_id = libvirt_volume.config_iso.id
     scsi      = false
   }
 
