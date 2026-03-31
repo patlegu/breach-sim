@@ -116,6 +116,21 @@ resource "libvirt_volume" "vm" {
 }
 
 # ── Cloud-init (NoCloud) ─────────────────────────────────────────────────────
+# Le provider libvirt ne diff pas le contenu de user_data — on utilise un
+# terraform_data avec triggers_replace pour forcer le remplacement du disque
+# cloud-init dès que le contenu change (mot de passe, clé SSH, template...).
+
+resource "terraform_data" "cloudinit_hash" {
+  for_each = local.vms
+
+  triggers_replace = sha256(templatefile("${path.module}/templates/user-data-${each.value.role}.yaml.tftpl", {
+    hostname         = "breach${var.instance_id}-${each.key}"
+    ssh_public_key   = var.ssh_public_key
+    vm_password_hash = var.vm_password_hash
+    instance_id      = var.instance_id
+    lan_base         = local.lan_base
+  }))
+}
 
 resource "libvirt_cloudinit_disk" "vm" {
   for_each = local.vms
@@ -126,17 +141,18 @@ resource "libvirt_cloudinit_disk" "vm" {
   depends_on = [terraform_data.debian_base_volume]
 
   user_data = templatefile("${path.module}/templates/user-data-${each.value.role}.yaml.tftpl", {
-    hostname       = "breach${var.instance_id}-${each.key}"
-    ssh_public_key = var.ssh_public_key
-    instance_id    = var.instance_id
-    lan_base       = local.lan_base
+    hostname         = "breach${var.instance_id}-${each.key}"
+    ssh_public_key   = var.ssh_public_key
+    vm_password_hash = var.vm_password_hash
+    instance_id      = var.instance_id
+    lan_base         = local.lan_base
   })
 
-  network_config = templatefile("${path.module}/templates/network-config.yaml.tftpl", {
-    ip      = each.value.ip
-    prefix  = local.lan_prefix
-    gateway = local.gateway
-  })
+  network_config = file("${path.module}/templates/network-config.yaml.tftpl")
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.cloudinit_hash[each.key]]
+  }
 }
 
 # ── Domaines libvirt ──────────────────────────────────────────────────────────

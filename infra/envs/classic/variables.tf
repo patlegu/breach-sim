@@ -46,6 +46,12 @@ variable "opnsense_root_hash" {
   sensitive   = true
 }
 
+variable "vm_password_hash" {
+  description = "Hash SHA512 mot de passe user breach (VMs Linux) — openssl passwd -6 'monmotdepasse'"
+  type        = string
+  sensitive   = true
+}
+
 variable "opnsense_api_key" {
   description = "Clé API OPNsense (80 chars alphanum) — openssl rand -hex 40"
   type        = string

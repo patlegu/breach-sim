@@ -75,7 +75,8 @@ module "classic_lab" {
   libvirt_pool   = var.libvirt_pool
   lan_network_id = module.network.lan_network_id
   lan_cidr       = module.network.lan_cidr
-  ssh_public_key = var.ssh_public_key
+  ssh_public_key   = var.ssh_public_key
+  vm_password_hash = var.vm_password_hash
   debian_image_url = var.debian_image_url
   image_cache_dir  = var.image_cache_dir
 

@@ -6,6 +6,7 @@ ssh_public_key = "ssh-ed25519 AAAA... pat@host"
 
 # openssl passwd -6 'monmotdepasse'
 opnsense_root_hash = "$6$rounds=5000$..."
+vm_password_hash   = "$6$rounds=5000$..."
 
 # openssl rand -hex 40
 opnsense_api_key    = ""
