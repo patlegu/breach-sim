@@ -1,4 +1,11 @@
 version: 2
 ethernets:
   ens3:
-    dhcp4: true
+    dhcp4: false
+    addresses:
+      - ${ip}/${prefix}
+    gateway4: ${gateway}
+    nameservers:
+      addresses:
+        - ${gateway}
+        - 1.1.1.1

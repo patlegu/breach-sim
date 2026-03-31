@@ -123,13 +123,20 @@ resource "libvirt_volume" "vm" {
 resource "terraform_data" "cloudinit_hash" {
   for_each = local.vms
 
-  triggers_replace = sha256(templatefile("${path.module}/templates/user-data-${each.value.role}.yaml.tftpl", {
-    hostname         = "breach${var.instance_id}-${each.key}"
-    ssh_public_key   = var.ssh_public_key
-    vm_password_hash = var.vm_password_hash
-    instance_id      = var.instance_id
-    lan_base         = local.lan_base
-  }))
+  triggers_replace = sha256(join("|", [
+    templatefile("${path.module}/templates/user-data-${each.value.role}.yaml.tftpl", {
+      hostname         = "breach${var.instance_id}-${each.key}"
+      ssh_public_key   = var.ssh_public_key
+      vm_password_hash = var.vm_password_hash
+      instance_id      = var.instance_id
+      lan_base         = local.lan_base
+    }),
+    templatefile("${path.module}/templates/network-config.yaml.tftpl", {
+      ip      = each.value.ip
+      prefix  = local.lan_prefix
+      gateway = local.gateway
+    }),
+  ]))
 }
 
 resource "libvirt_cloudinit_disk" "vm" {
@@ -148,7 +155,11 @@ resource "libvirt_cloudinit_disk" "vm" {
     lan_base         = local.lan_base
   })
 
-  network_config = file("${path.module}/templates/network-config.yaml.tftpl")
+  network_config = templatefile("${path.module}/templates/network-config.yaml.tftpl", {
+    ip      = each.value.ip
+    prefix  = local.lan_prefix
+    gateway = local.gateway
+  })
 
   lifecycle {
     replace_triggered_by = [terraform_data.cloudinit_hash[each.key]]
