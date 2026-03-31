@@ -143,9 +143,15 @@ async def _run_scenario_task(scenario_id: str) -> None:
 
 
 def _parse_tool_call(text: str) -> dict | None:
+    import re
     text = text.strip()
     for stop in ["<|im_end|>", "<|endoftext|>"]:
         text = text.replace(stop, "").strip()
+    # Strip markdown code fences (```json ... ``` or ``` ... ```)
+    text = re.sub(r'^```(?:json)?\s*', '', text, flags=re.MULTILINE)
+    text = re.sub(r'\s*```$', '', text, flags=re.MULTILINE)
+    text = text.strip()
+    # Try direct parse
     try:
         data = json.loads(text)
         if isinstance(data, list) and data:
@@ -154,6 +160,18 @@ def _parse_tool_call(text: str) -> dict | None:
             return data
     except json.JSONDecodeError:
         pass
+    # Try to extract first JSON object or array from text
+    for pattern in (r'(\[.*\])', r'(\{.*\})'):
+        m = re.search(pattern, text, re.DOTALL)
+        if m:
+            try:
+                data = json.loads(m.group(1))
+                if isinstance(data, list) and data:
+                    return data[0]
+                if isinstance(data, dict):
+                    return data
+            except json.JSONDecodeError:
+                pass
     return {"raw": text}
 
 
