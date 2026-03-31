@@ -4,6 +4,8 @@
   import StepCard from './lib/components/StepCard.svelte'
   import ScenarioSelector from './lib/components/ScenarioSelector.svelte'
   import { scenarioStore } from './lib/stores/scenarioStore'
+  import { topologyStore } from './lib/stores/topologyStore'
+  import { animStore } from './lib/stores/animStore'
   import {
     connectDemoSSE, triggerScenario, resetScenario, fetchHealth,
     fetchScenarios, fetchScenario,
@@ -22,16 +24,26 @@
   let selectedId: string | null = null
   let currentScenario: ScenarioDetail | null = null
   let steps: ScenarioStep[] = []
+  let attackerIp = '?'
+  let attackerRole = 'Attaquant externe'
+
+  // Métadonnées attaquant par scénario
+  const ATTACKER_META: Record<string, { ip: string; role: string }> = {
+    ssh_brute_force: { ip: '185.220.101.47', role: 'Tor exit node' },
+    log4shell:       { ip: '91.92.251.103',  role: 'Exploit scanner' },
+    ddos_udp:        { ip: '45.95.147.88',   role: 'DDoS coordinator' },
+    ransomware_c2:   { ip: '192.168.2.15',   role: 'Hôte compromis (DMZ)' },
+  }
 
   async function loadScenario(id: string) {
+    // Réinitialiser topologie et animation avant de charger le nouveau scénario
+    topologyStore.reset()
+    animStore.reset()
     currentScenario = await fetchScenario(id)
     steps = currentScenario.steps
     scenarioStore.init(steps.map(s => s.id))
-    topologyReset()
-  }
-
-  function topologyReset() {
-    // Déclenché via resetScenario ou changement de scénario
+    const meta = ATTACKER_META[id]
+    if (meta) { attackerIp = meta.ip; attackerRole = meta.role }
   }
 
   $: if (selectedId && ready) {
@@ -203,7 +215,7 @@
       <div class="flex-[3] min-h-0 p-3 border-b border-zinc-800">
         <p class="text-xs text-zinc-500 uppercase tracking-wider mb-2">Topologie réseau</p>
         <div class="h-[calc(100%-1.25rem)]">
-          <NetworkTopology />
+          <NetworkTopology {attackerIp} {attackerRole} />
         </div>
       </div>
 

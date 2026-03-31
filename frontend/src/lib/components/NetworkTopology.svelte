@@ -4,6 +4,9 @@
   import { animStore } from '../stores/animStore'
   import cytoscape from 'cytoscape'
 
+  export let attackerIp: string = '?'
+  export let attackerRole: string = 'Attaquant externe'
+
   let container: HTMLDivElement
   let tooltipEl: HTMLDivElement
   let cy: cytoscape.Core
@@ -20,7 +23,7 @@
   }
 
   const NODE_INFO: Record<string, { ip: string; role: string; service: string }> = {
-    attacker:  { ip: '185.220.101.47',    role: 'Tor exit node',        service: 'SSH brute-force · port scan' },
+    attacker:  { ip: attackerIp, role: attackerRole, service: '' },
     internet:  { ip: 'WAN',               role: 'Périmètre réseau',     service: 'Transit' },
     firewall:  { ip: '192.168.1.1',       role: 'Gateway / IDS',        service: 'OPNsense 24.x' },
     crowdsec:  { ip: '192.168.1.10',      role: 'IDPS',                 service: 'CrowdSec LAPI' },
@@ -31,7 +34,7 @@
   }
 
   const NODES = [
-    { id: 'attacker',  label: '🔴 Attaquant\n185.220.101.47', x: 300, y: 35  },
+    { id: 'attacker',  label: `🔴 Attaquant\n${attackerIp}`, x: 300, y: 35  },
     { id: 'internet',  label: '🌐 Internet',                  x: 300, y: 130 },
     { id: 'firewall',  label: '🛡 OPNsense\nFirewall',        x: 300, y: 250 },
     { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',            x: 110, y: 370 },
@@ -86,6 +89,14 @@
     setTimeout(() => {
       edgeIds.forEach(id => cy.$(`#${id}`).style(NORMAL_EDGE_STYLE))
     }, 1500)
+  }
+
+  // Mettre à jour le label de l'attaquant quand l'IP change
+  $: if (cy) {
+    cy.$('#attacker').data('label', `🔴 Attaquant\n${attackerIp}`)
+    cy.$('#attacker').style('label', `🔴 Attaquant\n${attackerIp}`)
+    NODE_INFO.attacker.ip = attackerIp
+    NODE_INFO.attacker.role = attackerRole
   }
 
   // Réagir aux changements du store de couleurs de nœuds
