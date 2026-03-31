@@ -71,20 +71,20 @@
 
   <!-- Interfaces réseau -->
   <interfaces>
-    <!-- WAN — em0, DHCP -->
+    <!-- WAN — vtnet0 (virtio, KVM), DHCP -->
     <wan>
       <enable>1</enable>
-      <if>em0</if>
+      <if>vtnet0</if>
       <descr>WAN</descr>
       <ipaddr>dhcp</ipaddr>
       <ipaddrv6>dhcp6</ipaddrv6>
       <blockbogons>1</blockbogons>
     </wan>
 
-    <!-- LAN — em1, IP statique -->
+    <!-- LAN — vtnet1 (virtio, KVM), IP statique -->
     <lan>
       <enable>1</enable>
-      <if>em1</if>
+      <if>vtnet1</if>
       <descr>LAN</descr>
       <ipaddr>${lan_ip}</ipaddr>
       <subnet>${lan_prefix}</subnet>
