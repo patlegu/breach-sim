@@ -12,12 +12,24 @@ provider "libvirt" {
 }
 
 # ── Pool de stockage libvirt ──────────────────────────────────────────────────
+# Utilise virsh directement (idempotent) pour éviter les destructions de pool
+# qui échouent quand le répertoire est non-vide (images de base en cache).
 
-resource "libvirt_pool" "images" {
-  name = var.libvirt_pool
-  type = "dir"
-  target {
-    path = "/var/lib/libvirt/images"
+resource "terraform_data" "libvirt_pool" {
+  input = "${var.libvirt_uri}|${var.libvirt_pool}"
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -euo pipefail
+      VIRSH="virsh -c ${var.libvirt_uri}"
+      POOL="${var.libvirt_pool}"
+      if ! $VIRSH pool-info "$POOL" >/dev/null 2>&1; then
+        echo "==> Création du pool libvirt '$POOL'..."
+        $VIRSH pool-define-as "$POOL" dir --target /var/lib/libvirt/images
+        $VIRSH pool-autostart "$POOL"
+        $VIRSH pool-start "$POOL"
+      fi
+    EOT
   }
 }
 
@@ -38,7 +50,7 @@ module "opnsense" {
 
   instance_id        = var.instance_id
   libvirt_uri        = var.libvirt_uri
-  libvirt_pool       = libvirt_pool.images.name
+  libvirt_pool       = var.libvirt_pool
   wan_network_id     = module.network.wan_network_id
   lan_network_id     = module.network.lan_network_id
   lan_cidr           = module.network.lan_cidr
@@ -48,6 +60,8 @@ module "opnsense" {
   ssh_public_key     = var.ssh_public_key
   api_key            = var.opnsense_api_key
   api_secret         = var.opnsense_api_secret
+
+  depends_on = [terraform_data.libvirt_pool]
 }
 
 # ── VMs Linux (cloud-init) ────────────────────────────────────────────────────
@@ -57,10 +71,12 @@ module "classic_lab" {
 
   instance_id    = var.instance_id
   libvirt_uri    = var.libvirt_uri
-  libvirt_pool   = libvirt_pool.images.name
+  libvirt_pool   = var.libvirt_pool
   lan_network_id = module.network.lan_network_id
   lan_cidr       = module.network.lan_cidr
   ssh_public_key = var.ssh_public_key
   debian_image_url = var.debian_image_url
   image_cache_dir  = var.image_cache_dir
+
+  depends_on = [terraform_data.libvirt_pool]
 }
