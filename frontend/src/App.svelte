@@ -215,7 +215,7 @@
       <div class="flex-[3] min-h-0 p-3 border-b border-zinc-800">
         <p class="text-xs text-zinc-500 uppercase tracking-wider mb-2">Topologie réseau</p>
         <div class="h-[calc(100%-1.25rem)]">
-          <NetworkTopology {attackerIp} {attackerRole} />
+          <NetworkTopology {attackerIp} {attackerRole} scenarioId={selectedId ?? ''} />
         </div>
       </div>
 

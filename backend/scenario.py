@@ -218,8 +218,8 @@ SCENARIOS: dict = {
                 "title": "Beacon C2 détecté",
                 "agent": "crowdsec",
                 "description": "Communication C2 sortante vers 194.165.16.72:443 (Cobalt Strike) depuis 192.168.2.15",
-                "attack_edges": ["e-atk-net", "e-net-fw", "e-fw-cs"],
-                "topology_event": "crowdsec_ban",
+                "attack_edges": ["e-lan-inf", "e-fw-lan", "e-net-fw", "e-atk-net", "e-fw-cs"],
+                "topology_event": "infected_beacon",
                 "mitre": {"tactic": "Command and Control", "technique": "T1071.001", "name": "Web Protocols", "cve": None},
                 "cap": {
                     "directive": "add_decision",
@@ -232,8 +232,8 @@ SCENARIOS: dict = {
                 "title": "Blocage egress C2",
                 "agent": "opnsense",
                 "description": "Blocage du trafic sortant vers l'IP C2 sur toutes les interfaces",
-                "attack_edges": ["e-atk-net", "e-net-fw"],
-                "topology_event": "firewall_block",
+                "attack_edges": ["e-lan-inf", "e-fw-lan", "e-net-fw", "e-atk-net"],
+                "topology_event": "egress_blocked",
                 "mitre": {"tactic": "Command and Control", "technique": "T1071", "name": "Application Layer Protocol", "cve": None},
                 "cap": {
                     "directive": "block_ip",
@@ -246,8 +246,8 @@ SCENARIOS: dict = {
                 "title": "Blocage lateral movement SMB/RDP",
                 "agent": "opnsense",
                 "description": "Blocage des ports de propagation ransomware sur le segment LAN (SMB 445, RDP 3389, WMI 135)",
-                "attack_edges": ["e-atk-net", "e-net-fw", "e-fw-dmz"],
-                "topology_event": "filter_rule_added",
+                "attack_edges": ["e-lan-inf", "e-fw-lan"],
+                "topology_event": "lateral_blocked",
                 "mitre": {"tactic": "Lateral Movement", "technique": "T1021", "name": "Remote Services", "cve": None},
                 "cap": {
                     "directive": "add_filter_rule",

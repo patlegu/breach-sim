@@ -6,10 +6,10 @@
 
   export let attackerIp: string = '?'
   export let attackerRole: string = 'Attaquant externe'
+  export let scenarioId: string = ''
 
   let container: HTMLDivElement
-  let tooltipEl: HTMLDivElement
-  let cy: cytoscape.Core
+  let cy: cytoscape.Core | null = null
   let pulseInterval: ReturnType<typeof setInterval> | null = null
   let tooltipVisible = false
   let tooltipText = ''
@@ -22,53 +22,98 @@
     defended: { bg: '#064e3b', border: '#10b981' },
   }
 
-  const NODE_INFO: Record<string, { ip: string; role: string; service: string }> = {
-    attacker:  { ip: attackerIp, role: attackerRole, service: '' },
-    internet:  { ip: 'WAN',               role: 'Périmètre réseau',     service: 'Transit' },
-    firewall:  { ip: '192.168.1.1',       role: 'Gateway / IDS',        service: 'OPNsense 24.x' },
-    crowdsec:  { ip: '192.168.1.10',      role: 'IDPS',                 service: 'CrowdSec LAPI' },
-    wireguard: { ip: '10.0.0.1',          role: 'VPN Gateway',          service: 'WireGuard 1.0' },
-    dmz:       { ip: '192.168.2.0/24',    role: 'Zone démilitarisée',   service: 'Réseau isolé' },
-    'srv-web': { ip: '192.168.2.10',      role: 'Serveur web',          service: 'Nginx 1.24' },
-    'srv-db':  { ip: '192.168.2.20',      role: 'Base de données',      service: 'PostgreSQL 16' },
-  }
+  // ── Configurations topologie par scénario ──────────────────────────────────
 
-  const NODES = [
-    { id: 'attacker',  label: `🔴 Attaquant\n${attackerIp}`, x: 300, y: 35  },
-    { id: 'internet',  label: '🌐 Internet',                  x: 300, y: 130 },
-    { id: 'firewall',  label: '🛡 OPNsense\nFirewall',        x: 300, y: 250 },
-    { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',            x: 110, y: 370 },
-    { id: 'wireguard', label: '🔐 WireGuard\nVPN',            x: 490, y: 370 },
-    { id: 'dmz',       label: '🔒 DMZ',                       x: 300, y: 370 },
-    { id: 'srv-web',   label: '💻 srv-web',                   x: 210, y: 470 },
-    { id: 'srv-db',    label: '🗄 srv-db',                    x: 390, y: 470 },
-  ]
+  function getConfig(sid: string, ip: string) {
+    if (sid === 'ransomware_c2') {
+      return {
+        nodes: [
+          { id: 'attacker',  label: `☠️ C2 Server\n${ip}`,          x: 300, y: 35  },
+          { id: 'internet',  label: '🌐 Internet',                   x: 300, y: 130 },
+          { id: 'firewall',  label: '🛡 OPNsense\nFirewall',         x: 300, y: 250 },
+          { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',             x: 100, y: 370 },
+          { id: 'wireguard', label: '🔐 WireGuard\nVPN',             x: 500, y: 370 },
+          { id: 'dmz',       label: '🔒 DMZ',                        x: 185, y: 370 },
+          { id: 'lan',       label: '🏠 LAN\n192.168.1.0/24',        x: 390, y: 370 },
+          { id: 'srv-web',   label: '💻 srv-web',                    x: 110, y: 470 },
+          { id: 'srv-db',    label: '🗄 srv-db',                     x: 260, y: 470 },
+          { id: 'infected',  label: `👤 192.168.2.15\nPosté infecté`, x: 390, y: 470 },
+        ],
+        edges: [
+          { id: 'e-atk-net',  source: 'attacker',  target: 'internet'  },
+          { id: 'e-net-fw',   source: 'internet',  target: 'firewall'  },
+          { id: 'e-fw-cs',    source: 'firewall',  target: 'crowdsec'  },
+          { id: 'e-fw-wg',    source: 'firewall',  target: 'wireguard' },
+          { id: 'e-fw-dmz',   source: 'firewall',  target: 'dmz'       },
+          { id: 'e-fw-lan',   source: 'firewall',  target: 'lan'       },
+          { id: 'e-dmz-web',  source: 'dmz',       target: 'srv-web'   },
+          { id: 'e-dmz-db',   source: 'dmz',       target: 'srv-db'    },
+          { id: 'e-lan-inf',  source: 'lan',       target: 'infected'  },
+        ],
+        info: {
+          attacker:  { ip, role: 'Serveur C2 Cobalt Strike', service: 'HTTPS beacon 443' },
+          internet:  { ip: 'WAN', role: 'Périmètre réseau', service: 'Transit' },
+          firewall:  { ip: '192.168.1.1', role: 'Gateway / IDS', service: 'OPNsense 24.x' },
+          crowdsec:  { ip: '192.168.1.10', role: 'IDPS', service: 'CrowdSec LAPI' },
+          wireguard: { ip: '10.0.0.1', role: 'VPN Gateway', service: 'WireGuard 1.0' },
+          dmz:       { ip: '192.168.2.0/24', role: 'Zone démilitarisée', service: 'Réseau isolé' },
+          lan:       { ip: '192.168.1.0/24', role: 'Réseau local', service: 'LAN interne' },
+          'srv-web': { ip: '192.168.2.10', role: 'Serveur web', service: 'Nginx 1.24' },
+          'srv-db':  { ip: '192.168.2.20', role: 'Base de données', service: 'PostgreSQL 16' },
+          infected:  { ip: '192.168.2.15', role: 'Poste compromis', service: 'Ransomware beacon' },
+        },
+      }
+    }
 
-  const EDGES = [
-    { id: 'e-atk-net', source: 'attacker',  target: 'internet'  },
-    { id: 'e-net-fw',  source: 'internet',  target: 'firewall'  },
-    { id: 'e-fw-cs',   source: 'firewall',  target: 'crowdsec'  },
-    { id: 'e-fw-wg',   source: 'firewall',  target: 'wireguard' },
-    { id: 'e-fw-dmz',  source: 'firewall',  target: 'dmz'       },
-    { id: 'e-dmz-web', source: 'dmz',       target: 'srv-web'   },
-    { id: 'e-dmz-db',  source: 'dmz',       target: 'srv-db'    },
-  ]
-
-  const NORMAL_EDGE_STYLE = { 'line-color': '#3f3f46', 'target-arrow-color': '#3f3f46', 'width': 2 }
-  const ATTACK_EDGE_BRIGHT = { 'line-color': '#f97316', 'target-arrow-color': '#f97316', 'width': 3 }
-  const ATTACK_EDGE_DIM    = { 'line-color': '#7c2d12', 'target-arrow-color': '#7c2d12', 'width': 2 }
-  const DEFEND_EDGE_STYLE  = { 'line-color': '#10b981', 'target-arrow-color': '#10b981', 'width': 3 }
-
-  function stopPulse() {
-    if (pulseInterval !== null) {
-      clearInterval(pulseInterval)
-      pulseInterval = null
+    // Topologie standard (SSH, Log4Shell, DDoS)
+    return {
+      nodes: [
+        { id: 'attacker',  label: `🔴 Attaquant\n${ip}`,        x: 300, y: 35  },
+        { id: 'internet',  label: '🌐 Internet',                 x: 300, y: 130 },
+        { id: 'firewall',  label: '🛡 OPNsense\nFirewall',       x: 300, y: 250 },
+        { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',           x: 110, y: 370 },
+        { id: 'wireguard', label: '🔐 WireGuard\nVPN',           x: 490, y: 370 },
+        { id: 'dmz',       label: '🔒 DMZ',                      x: 300, y: 370 },
+        { id: 'srv-web',   label: '💻 srv-web',                  x: 210, y: 470 },
+        { id: 'srv-db',    label: '🗄 srv-db',                   x: 390, y: 470 },
+      ],
+      edges: [
+        { id: 'e-atk-net', source: 'attacker',  target: 'internet'  },
+        { id: 'e-net-fw',  source: 'internet',  target: 'firewall'  },
+        { id: 'e-fw-cs',   source: 'firewall',  target: 'crowdsec'  },
+        { id: 'e-fw-wg',   source: 'firewall',  target: 'wireguard' },
+        { id: 'e-fw-dmz',  source: 'firewall',  target: 'dmz'       },
+        { id: 'e-dmz-web', source: 'dmz',       target: 'srv-web'   },
+        { id: 'e-dmz-db',  source: 'dmz',       target: 'srv-db'    },
+      ],
+      info: {
+        attacker:  { ip, role: attackerRole, service: '' },
+        internet:  { ip: 'WAN', role: 'Périmètre réseau', service: 'Transit' },
+        firewall:  { ip: '192.168.1.1', role: 'Gateway / IDS', service: 'OPNsense 24.x' },
+        crowdsec:  { ip: '192.168.1.10', role: 'IDPS', service: 'CrowdSec LAPI' },
+        wireguard: { ip: '10.0.0.1', role: 'VPN Gateway', service: 'WireGuard 1.0' },
+        dmz:       { ip: '192.168.2.0/24', role: 'Zone démilitarisée', service: 'Réseau isolé' },
+        'srv-web': { ip: '192.168.2.10', role: 'Serveur web', service: 'Nginx 1.24' },
+        'srv-db':  { ip: '192.168.2.20', role: 'Base de données', service: 'PostgreSQL 16' },
+      },
     }
   }
 
-  function resetAllEdges() {
+  // ── Styles edges ───────────────────────────────────────────────────────────
+  const NORMAL_EDGE  = { 'line-color': '#3f3f46', 'target-arrow-color': '#3f3f46', 'width': 2 }
+  const ATTACK_BRIGHT = { 'line-color': '#f97316', 'target-arrow-color': '#f97316', 'width': 3 }
+  const ATTACK_DIM    = { 'line-color': '#7c2d12', 'target-arrow-color': '#7c2d12', 'width': 2 }
+  const DEFEND_EDGE   = { 'line-color': '#10b981', 'target-arrow-color': '#10b981', 'width': 3 }
+
+  let nodeInfo: Record<string, { ip: string; role: string; service: string }> = {}
+
+  function stopPulse() {
+    if (pulseInterval !== null) { clearInterval(pulseInterval); pulseInterval = null }
+  }
+
+  function resetEdges(edges: { id: string }[]) {
     if (!cy) return
-    EDGES.forEach(e => cy.$(`#${e.id}`).style(NORMAL_EDGE_STYLE))
+    edges.forEach(e => cy!.$(`#${e.id}`).style(NORMAL_EDGE))
   }
 
   function startPulse(edgeIds: string[]) {
@@ -76,8 +121,8 @@
     let bright = true
     pulseInterval = setInterval(() => {
       if (!cy) return
-      const style = bright ? ATTACK_EDGE_BRIGHT : ATTACK_EDGE_DIM
-      edgeIds.forEach(id => cy.$(`#${id}`).style(style))
+      const style = bright ? ATTACK_BRIGHT : ATTACK_DIM
+      edgeIds.forEach(id => cy!.$(`#${id}`).style(style))
       bright = !bright
     }, 350)
   }
@@ -85,60 +130,23 @@
   function flashDefended(edgeIds: string[]) {
     stopPulse()
     if (!cy) return
-    edgeIds.forEach(id => cy.$(`#${id}`).style(DEFEND_EDGE_STYLE))
-    setTimeout(() => {
-      edgeIds.forEach(id => cy.$(`#${id}`).style(NORMAL_EDGE_STYLE))
-    }, 1500)
+    edgeIds.forEach(id => cy!.$(`#${id}`).style(DEFEND_EDGE))
+    setTimeout(() => edgeIds.forEach(id => cy!.$(`#${id}`).style(NORMAL_EDGE)), 1500)
   }
 
-  // Mettre à jour le label de l'attaquant quand l'IP change
-  $: if (cy) {
-    cy.$('#attacker').data('label', `🔴 Attaquant\n${attackerIp}`)
-    cy.$('#attacker').style('label', `🔴 Attaquant\n${attackerIp}`)
-    NODE_INFO.attacker.ip = attackerIp
-    NODE_INFO.attacker.role = attackerRole
-  }
+  // ── Construire / reconstruire Cytoscape ────────────────────────────────────
+  function buildCy(sid: string, ip: string) {
+    stopPulse()
+    if (cy) { cy.destroy(); cy = null }
 
-  // Réagir aux changements du store de couleurs de nœuds
-  const unsubTopology = topologyStore.subscribe(state => {
-    if (!cy) return
-    for (const [nodeId, status] of Object.entries(state.nodes)) {
-      const node = cy.$(`#${nodeId}`)
-      if (!node.length) continue
-      node.style({
-        'background-color': NODE_COLORS[status].bg,
-        'border-color': NODE_COLORS[status].border,
-        'border-width': status === 'normal' ? 2 : 3,
-      })
-    }
-  })
+    const cfg = getConfig(sid, ip)
+    nodeInfo = cfg.info as typeof nodeInfo
 
-  // Réagir aux changements d'animation
-  const unsubAnim = animStore.subscribe(state => {
-    if (!cy) return
-    if (state.phase === 'idle') {
-      resetAllEdges()
-      return
-    }
-    const edges = state.activeEdges
-    if (state.phase === 'attacking') {
-      startPulse(edges)
-    } else if (state.phase === 'defended') {
-      flashDefended(edges)
-    }
-  })
-
-  onMount(() => {
     cy = cytoscape({
       container,
       elements: [
-        ...NODES.map(n => ({
-          data: { id: n.id, label: n.label },
-          position: { x: n.x, y: n.y },
-        })),
-        ...EDGES.map(e => ({
-          data: { id: e.id, source: e.source, target: e.target },
-        })),
+        ...cfg.nodes.map(n => ({ data: { id: n.id, label: n.label }, position: { x: n.x, y: n.y } })),
+        ...cfg.edges.map(e => ({ data: { id: e.id, source: e.source, target: e.target } })),
       ],
       style: [
         {
@@ -176,21 +184,49 @@
 
     cy.fit(cy.nodes(), 20)
 
-    // Tooltips sur hover
+    // Tooltips
     cy.on('mouseover', 'node', (e) => {
       const id = e.target.id()
-      const info = NODE_INFO[id]
+      const info = nodeInfo[id]
       if (!info) return
       const pos = e.target.renderedBoundingBox()
       tooltipX = (pos.x1 + pos.x2) / 2
       tooltipY = pos.y1 - 8
-      tooltipText = `${info.ip} · ${info.role}\n${info.service}`
+      tooltipText = `${info.ip} · ${info.role}${info.service ? '\n' + info.service : ''}`
       tooltipVisible = true
     })
+    cy.on('mouseout', 'node', () => { tooltipVisible = false })
+  }
 
-    cy.on('mouseout', 'node', () => {
-      tooltipVisible = false
-    })
+  // Reconstruire quand le scénario ou l'IP change
+  $: if (container && scenarioId) buildCy(scenarioId, attackerIp)
+
+  // Réagir aux changements de couleur de nœuds
+  const unsubTopology = topologyStore.subscribe(state => {
+    if (!cy) return
+    for (const [nodeId, status] of Object.entries(state.nodes)) {
+      const node = cy.$(`#${nodeId}`)
+      if (!node.length) continue
+      node.style({
+        'background-color': NODE_COLORS[status].bg,
+        'border-color': NODE_COLORS[status].border,
+        'border-width': status === 'normal' ? 2 : 3,
+      })
+    }
+  })
+
+  // Réagir aux animations
+  const unsubAnim = animStore.subscribe(state => {
+    if (!cy) return
+    const cfg = getConfig(scenarioId, attackerIp)
+    if (state.phase === 'idle') { resetEdges(cfg.edges); return }
+    const edges = state.activeEdges
+    if (state.phase === 'attacking') startPulse(edges)
+    else if (state.phase === 'defended') flashDefended(edges)
+  })
+
+  onMount(() => {
+    if (scenarioId) buildCy(scenarioId, attackerIp)
   })
 
   onDestroy(() => {
@@ -206,7 +242,6 @@
 
   {#if tooltipVisible}
     <div
-      bind:this={tooltipEl}
       class="absolute z-10 pointer-events-none px-2 py-1.5 rounded bg-zinc-800 border border-zinc-600 text-xs font-mono text-zinc-200 whitespace-pre shadow-lg"
       style="left: {tooltipX}px; top: {tooltipY}px; transform: translate(-50%, -100%);"
     >
