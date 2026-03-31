@@ -107,61 +107,56 @@ resource "libvirt_volume" "opnsense" {
   depends_on = [terraform_data.opnsense_base_volume]
 }
 
-# ── Config drive ISO (config.xml initial) ─────────────────────────────────────
-# Génère l'ISO de configuration OPNsense avec config.xml pré-rempli,
-# puis l'importe dans libvirt via libvirt_volume (source = fichier local).
+# ── Injection config.xml dans le volume OPNsense ─────────────────────────────
+# OPNsense nano a déjà un /conf/config.xml sur son filesystem principal.
+# L'approche ISO CD-ROM ne fonctionne pas (OPNsense ne le monte pas).
+# On utilise virt-customize pour écraser directement le fichier dans le qcow2
+# après création du volume CoW, avant le démarrage du domaine.
+# Prérequis : apt-get install -y libguestfs-tools
 
 locals {
-  config_iso_path = "${var.image_cache_dir}/breach-${var.instance_id}-opnsense-conf.iso"
+  config_xml_path = "${var.image_cache_dir}/breach-${var.instance_id}-opnsense-config.xml"
+  opnsense_vol_path = "/var/lib/libvirt/images/${local.name}.qcow2"
 }
 
-resource "terraform_data" "config_iso_file" {
-  # Recrée l'ISO si l'un des paramètres de config change
+resource "terraform_data" "config_inject" {
   input = sha256(templatefile("${path.module}/templates/config.xml.tftpl", {
-    lan_ip      = local.lan_ip
-    lan_prefix  = local.lan_prefix
-    dhcp_from   = local.dhcp_from
-    dhcp_to     = local.dhcp_to
-    root_hash   = var.root_password_hash
-    ssh_key     = var.ssh_public_key
-    api_key     = var.api_key
-    api_secret  = var.api_secret
-    hostname    = "opnsense-${var.instance_id}"
+    lan_ip     = local.lan_ip
+    lan_prefix = local.lan_prefix
+    dhcp_from  = local.dhcp_from
+    dhcp_to    = local.dhcp_to
+    root_hash  = var.root_password_hash
+    ssh_key    = var.ssh_public_key
+    api_key    = var.api_key
+    api_secret = var.api_secret
+    hostname   = "opnsense-${var.instance_id}"
   }))
 
   provisioner "local-exec" {
     command = <<-EOT
       set -euo pipefail
       mkdir -p "${var.image_cache_dir}"
-      WORKDIR=$(mktemp -d)
-      mkdir -p "$WORKDIR/conf"
-      cat > "$WORKDIR/conf/config.xml" << 'XMLEOF'
+      cat > "${local.config_xml_path}" << 'XMLEOF'
 ${templatefile("${path.module}/templates/config.xml.tftpl", {
-        lan_ip      = local.lan_ip
-        lan_prefix  = local.lan_prefix
-        dhcp_from   = local.dhcp_from
-        dhcp_to     = local.dhcp_to
-        root_hash   = var.root_password_hash
-        ssh_key     = var.ssh_public_key
-        api_key     = var.api_key
-        api_secret  = var.api_secret
-        hostname    = "opnsense-${var.instance_id}"
+        lan_ip     = local.lan_ip
+        lan_prefix = local.lan_prefix
+        dhcp_from  = local.dhcp_from
+        dhcp_to    = local.dhcp_to
+        root_hash  = var.root_password_hash
+        ssh_key    = var.ssh_public_key
+        api_key    = var.api_key
+        api_secret = var.api_secret
+        hostname   = "opnsense-${var.instance_id}"
       })}
 XMLEOF
-      mkisofs -o "${local.config_iso_path}" -r -J "$WORKDIR"
-      rm -rf "$WORKDIR"
-      echo "==> Config ISO générée : ${local.config_iso_path}"
+      echo "==> Injection config.xml dans ${local.opnsense_vol_path}..."
+      virt-customize -a "${local.opnsense_vol_path}" \
+        --upload "${local.config_xml_path}:/conf/config.xml"
+      echo "==> config.xml injecté."
     EOT
   }
-}
 
-resource "libvirt_volume" "config_iso" {
-  name   = "breach-${var.instance_id}-opnsense-conf.iso"
-  pool   = var.libvirt_pool
-  source = local.config_iso_path
-  format = "raw"
-
-  depends_on = [terraform_data.config_iso_file, terraform_data.opnsense_base_volume]
+  depends_on = [libvirt_volume.opnsense]
 }
 
 # ── Domaine libvirt OPNsense ──────────────────────────────────────────────────
@@ -175,25 +170,19 @@ resource "libvirt_domain" "opnsense" {
     mode = "host-passthrough"
   }
 
-  # Disque principal
+  # Disque principal (config.xml injecté directement via virt-customize)
   disk {
     volume_id = libvirt_volume.opnsense.id
     scsi      = false
   }
 
-  # CD-ROM config (éjecté après premier boot — OPNsense persiste la config)
-  disk {
-    volume_id = libvirt_volume.config_iso.id
-    scsi      = false
-  }
-
-  # em0 — WAN (wait_for_lease=false : OPNsense FreeBSD n'a pas de qemu-guest-agent)
+  # vtnet1 — WAN (wait_for_lease=false : OPNsense FreeBSD n'a pas de qemu-guest-agent)
   network_interface {
     network_id     = var.wan_network_id
     wait_for_lease = false
   }
 
-  # em1 — LAN
+  # vtnet0 — LAN
   network_interface {
     network_id     = var.lan_network_id
     wait_for_lease = false
@@ -213,5 +202,5 @@ resource "libvirt_domain" "opnsense" {
 
   autostart = true
 
-  depends_on = [terraform_data.config_iso_file]
+  depends_on = [terraform_data.config_inject]
 }
