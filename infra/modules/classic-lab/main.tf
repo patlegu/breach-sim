@@ -159,9 +159,10 @@ resource "libvirt_domain" "vm" {
 
   cloudinit = libvirt_cloudinit_disk.vm[each.key].id
 
+  # IPs statiques configurées via cloud-init — pas de DHCP libvirt sur le LAN
   network_interface {
     network_id     = var.lan_network_id
-    wait_for_lease = true
+    wait_for_lease = false
   }
 
   console {
