@@ -14,6 +14,8 @@
   $: tokenCount = step?.tokenCount ?? 0
   $: status = step?.status ?? 'idle'
   $: toolCall = step?.toolCall
+  $: execution = step?.execution
+  $: executionError = execution && 'error' in (execution as object)
   $: latency = step?.latency
   $: tokensPerSec = latency && latency > 0 && tokenCount > 0
     ? (tokenCount / latency).toFixed(1)
@@ -132,11 +134,37 @@
 
     </div>
 
-    <!-- Tool call résultant -->
+    <!-- Tool call + résultat d'exécution -->
     {#if toolCall && status === 'done'}
-      <div class="px-3 pb-3 border-t border-zinc-800 mt-1">
-        <p class="text-xs text-zinc-500 mb-2 uppercase tracking-wider pt-2">Tool call</p>
-        <pre class="text-xs font-mono text-emerald-300 bg-zinc-950 rounded p-2 overflow-auto max-h-64 scrollbar-thin whitespace-pre-wrap break-all">{formatJson(toolCall)}</pre>
+      <div class="border-t border-zinc-800">
+
+        {#if execution}
+          <!-- Mode live : grille tool call | résultat API -->
+          <div class="grid grid-cols-2 divide-x divide-zinc-800">
+            <div class="px-3 py-3">
+              <p class="text-xs text-zinc-500 mb-2 uppercase tracking-wider">Tool call</p>
+              <pre class="text-xs font-mono text-emerald-300 bg-zinc-950 rounded p-2 overflow-auto max-h-48 scrollbar-thin whitespace-pre-wrap break-all">{formatJson(toolCall)}</pre>
+            </div>
+            <div class="px-3 py-3">
+              <p class="text-xs mb-2 uppercase tracking-wider {executionError ? 'text-red-500' : 'text-defend'}">
+                Exécution live
+                {#if executionError}
+                  <span class="ml-1 normal-case">✗ erreur</span>
+                {:else}
+                  <span class="ml-1 normal-case">✓ appliqué</span>
+                {/if}
+              </p>
+              <pre class="text-xs font-mono {executionError ? 'text-red-400' : 'text-defend'} bg-zinc-950 rounded p-2 overflow-auto max-h-48 scrollbar-thin whitespace-pre-wrap break-all">{formatJson(execution)}</pre>
+            </div>
+          </div>
+        {:else}
+          <!-- Mode simulé : tool call seul -->
+          <div class="px-3 py-3">
+            <p class="text-xs text-zinc-500 mb-2 uppercase tracking-wider">Tool call</p>
+            <pre class="text-xs font-mono text-emerald-300 bg-zinc-950 rounded p-2 overflow-auto max-h-64 scrollbar-thin whitespace-pre-wrap break-all">{formatJson(toolCall)}</pre>
+          </div>
+        {/if}
+
       </div>
     {/if}
   {/if}

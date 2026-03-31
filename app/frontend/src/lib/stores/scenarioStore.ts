@@ -8,6 +8,7 @@ export interface StepState {
   tokens: string[]
   tokenCount: number
   toolCall: object | null
+  execution: object | null
   raw: string
   latency: number | null
   startedAt: number | null
@@ -23,7 +24,7 @@ function makeSteps(stepIds: string[]): Record<string, StepState> {
   return Object.fromEntries(
     stepIds.map(id => [
       id,
-      { id, status: 'idle' as StepStatus, tokens: [], tokenCount: 0, toolCall: null, raw: '', latency: null, startedAt: null },
+      { id, status: 'idle' as StepStatus, tokens: [], tokenCount: 0, toolCall: null, execution: null, raw: '', latency: null, startedAt: null },
     ])
   )
 }
@@ -65,10 +66,10 @@ function createScenarioStore() {
         }
       })
     },
-    setStepDone(stepId: string, toolCall: object, raw: string, latency: number) {
+    setStepDone(stepId: string, toolCall: object, raw: string, latency: number, execution: object | null = null) {
       update(s => ({
         ...s,
-        steps: { ...s.steps, [stepId]: { ...s.steps[stepId], status: 'done', toolCall, raw, latency } },
+        steps: { ...s.steps, [stepId]: { ...s.steps[stepId], status: 'done', toolCall, execution, raw, latency } },
       }))
     },
     setDone() {

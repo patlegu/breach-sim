@@ -24,7 +24,7 @@ export function connectDemoSSE(): () => void {
           scenarioStore.appendToken(event.step_id, event.text)
           break
         case 'step_done':
-          scenarioStore.setStepDone(event.step_id, event.tool_call, event.raw, event.latency_s)
+          scenarioStore.setStepDone(event.step_id, event.tool_call, event.raw, event.latency_s, event.execution ?? null)
           animStore.setDefended(event.step_id)
           break
         case 'topology_update':
@@ -109,6 +109,23 @@ export interface ScenarioStep {
 
 export interface ScenarioDetail extends ScenarioMeta {
   steps: ScenarioStep[]
+}
+
+export interface LabConfig {
+  live: boolean
+  lab_type: string
+  instance: number
+  opnsense_ip: string
+  infected_ip: string
+  srv_web_ip: string
+  srv_db_ip: string
+  k3s_cp_ip: string | null
+  crowdsec_ip: string
+}
+
+export async function fetchLab(): Promise<LabConfig> {
+  const res = await fetch('/api/lab')
+  return res.json()
 }
 
 export async function fetchScenarios(): Promise<ScenarioMeta[]> {

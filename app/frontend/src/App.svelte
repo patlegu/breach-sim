@@ -7,9 +7,9 @@
   import { topologyStore } from './lib/stores/topologyStore'
   import { animStore } from './lib/stores/animStore'
   import {
-    connectDemoSSE, triggerScenario, resetScenario, fetchHealth,
+    connectDemoSSE, triggerScenario, resetScenario, fetchHealth, fetchLab,
     fetchScenarios, fetchScenario,
-    type ScenarioMeta, type ScenarioDetail, type ScenarioStep,
+    type ScenarioMeta, type ScenarioDetail, type ScenarioStep, type LabConfig,
   } from './lib/utils/demoApi'
 
   // ── État modèles ──────────────────────────────────────────────────────────
@@ -18,6 +18,7 @@
   let modelInfo: Record<string, { name: string; precision: string }> = {}
   let errorMsg = ''
   let disconnectSSE: (() => void) | null = null
+  let labConfig: LabConfig | null = null
 
   // ── Scénarios ─────────────────────────────────────────────────────────────
   let scenarios: ScenarioMeta[] = []
@@ -61,9 +62,10 @@
       } catch { /* backend pas encore dispo */ }
       if (!ready) await new Promise(r => setTimeout(r, 1500))
     }
-    // Charger la liste des scénarios une fois les modèles prêts
+    // Charger la liste des scénarios et la config lab une fois les modèles prêts
     scenarios = await fetchScenarios()
     if (scenarios.length > 0) selectedId = scenarios[0].id
+    labConfig = await fetchLab().catch(() => null)
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -113,6 +115,7 @@
             ? parseFloat((st.tokenCount / st.latency).toFixed(1))
             : null,
           tool_call: st?.toolCall,
+          execution_result: st?.execution,
           raw_output: st?.raw,
         }
       }),
@@ -145,6 +148,18 @@
       <span class="text-red-500 text-xl">⚡</span>
       <h1 class="text-lg font-bold tracking-tight text-zinc-100">breach-sim</h1>
       <span class="text-xs text-zinc-500 font-mono">AI Cyber Defense Demo</span>
+      {#if labConfig?.live}
+        <span class="text-xs font-mono px-2 py-0.5 rounded border border-defend text-defend bg-emerald-950">
+          live · lab-{labConfig.instance}
+        </span>
+        <span class="text-xs font-mono text-zinc-600" title="OPNsense">
+          {labConfig.opnsense_ip}
+        </span>
+      {:else if labConfig}
+        <span class="text-xs font-mono px-2 py-0.5 rounded border border-zinc-700 text-zinc-500 bg-zinc-900">
+          simulé
+        </span>
+      {/if}
     </div>
     <div class="flex items-center gap-3">
       {#if !ready}
