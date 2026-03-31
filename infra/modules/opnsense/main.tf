@@ -161,7 +161,7 @@ resource "libvirt_volume" "config_iso" {
   source = local.config_iso_path
   format = "raw"
 
-  depends_on = [terraform_data.config_iso_file]
+  depends_on = [terraform_data.config_iso_file, terraform_data.opnsense_base_volume]
 }
 
 # ── Domaine libvirt OPNsense ──────────────────────────────────────────────────

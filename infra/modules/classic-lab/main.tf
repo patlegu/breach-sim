@@ -123,6 +123,8 @@ resource "libvirt_cloudinit_disk" "vm" {
   name = "breach-${var.instance_id}-${each.key}-init.iso"
   pool = var.libvirt_pool
 
+  depends_on = [terraform_data.debian_base_volume]
+
   user_data = templatefile("${path.module}/templates/user-data-${each.value.role}.yaml.tftpl", {
     hostname       = "breach${var.instance_id}-${each.key}"
     ssh_public_key = var.ssh_public_key
