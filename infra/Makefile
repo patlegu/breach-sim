@@ -1,7 +1,7 @@
 TF      := tofu
 LAB     ?= classic
 INSTANCE ?= 1
-LAB_DIR  := labs/$(LAB)
+LAB_DIR  := envs/$(LAB)
 TFVARS   := $(LAB_DIR)/terraform.tfvars
 
 .PHONY: help lab-init lab-up lab-down lab-show
