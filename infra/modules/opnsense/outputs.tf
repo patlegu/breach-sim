@@ -1,6 +1,6 @@
 output "wan_ip" {
   description = "IP WAN obtenue par DHCP (disponible après premier boot)"
-  value       = libvirt_domain.opnsense.network_interface[0].addresses[0]
+  value       = try(libvirt_domain.opnsense.network_interface[0].addresses[0], "dhcp-pending")
 }
 
 output "lan_ip" {
