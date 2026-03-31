@@ -28,16 +28,16 @@
     if (sid === 'ransomware_c2') {
       return {
         nodes: [
-          { id: 'attacker',  label: `☠️ C2 Server\n${ip}`,          x: 300, y: 35  },
-          { id: 'internet',  label: '🌐 Internet',                   x: 300, y: 130 },
-          { id: 'firewall',  label: '🛡 OPNsense\nFirewall',         x: 300, y: 250 },
-          { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',             x: 100, y: 370 },
-          { id: 'wireguard', label: '🔐 WireGuard\nVPN',             x: 500, y: 370 },
-          { id: 'dmz',       label: '🔒 DMZ',                        x: 185, y: 370 },
-          { id: 'lan',       label: '🏠 LAN\n192.168.1.0/24',        x: 390, y: 370 },
-          { id: 'srv-web',   label: '💻 srv-web',                    x: 110, y: 470 },
-          { id: 'srv-db',    label: '🗄 srv-db',                     x: 260, y: 470 },
-          { id: 'infected',  label: `👤 192.168.2.15\nPosté infecté`, x: 390, y: 470 },
+          { id: 'attacker',  label: `☠️ C2 Server\n${ip}`,           x: 300, y: 35  },
+          { id: 'internet',  label: '🌐 Internet',                    x: 300, y: 130 },
+          { id: 'firewall',  label: '🛡 OPNsense\nFirewall',          x: 300, y: 250 },
+          { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',              x: 80,  y: 370 },
+          { id: 'wireguard', label: '🔐 WireGuard\nVPN',              x: 520, y: 370 },
+          { id: 'dmz',       label: '🔒 DMZ',                         x: 210, y: 370 },
+          { id: 'lan',       label: '🏠 LAN\n192.168.2.0/24',         x: 390, y: 370 },
+          { id: 'srv-web',   label: '💻 srv-web',                     x: 120, y: 470 },
+          { id: 'srv-db',    label: '🗄 srv-db',                      x: 270, y: 470 },
+          { id: 'infected',  label: `👤 192.168.2.15\nPoste infecté`, x: 390, y: 470 },
         ],
         edges: [
           { id: 'e-atk-net',  source: 'attacker',  target: 'internet'  },
@@ -49,7 +49,9 @@
           { id: 'e-dmz-web',  source: 'dmz',       target: 'srv-web'   },
           { id: 'e-dmz-db',   source: 'dmz',       target: 'srv-db'    },
           { id: 'e-lan-inf',  source: 'lan',       target: 'infected'  },
+          { id: 'e-inf-wg',   source: 'infected',  target: 'wireguard' },
         ],
+        hiddenEdges: ['e-inf-wg'],
         info: {
           attacker:  { ip, role: 'Serveur C2 Cobalt Strike', service: 'HTTPS beacon 443' },
           internet:  { ip: 'WAN', role: 'Périmètre réseau', service: 'Transit' },
@@ -57,7 +59,7 @@
           crowdsec:  { ip: '192.168.1.10', role: 'IDPS', service: 'CrowdSec LAPI' },
           wireguard: { ip: '10.0.0.1', role: 'VPN Gateway', service: 'WireGuard 1.0' },
           dmz:       { ip: '192.168.2.0/24', role: 'Zone démilitarisée', service: 'Réseau isolé' },
-          lan:       { ip: '192.168.1.0/24', role: 'Réseau local', service: 'LAN interne' },
+          lan:       { ip: '192.168.2.0/24', role: 'Réseau local', service: 'LAN interne' },
           'srv-web': { ip: '192.168.2.10', role: 'Serveur web', service: 'Nginx 1.24' },
           'srv-db':  { ip: '192.168.2.20', role: 'Base de données', service: 'PostgreSQL 16' },
           infected:  { ip: '192.168.2.15', role: 'Poste compromis', service: 'Ransomware beacon' },
@@ -184,6 +186,11 @@
 
     cy.fit(cy.nodes(), 20)
 
+    // Cacher les edges masqués par défaut pour ce scénario
+    if ('hiddenEdges' in cfg) {
+      (cfg as any).hiddenEdges.forEach((id: string) => cy!.$(`#${id}`).style('display', 'none'))
+    }
+
     // Tooltips
     cy.on('mouseover', 'node', (e) => {
       const id = e.target.id()
@@ -201,7 +208,7 @@
   // Reconstruire quand le scénario ou l'IP change
   $: if (container && scenarioId) buildCy(scenarioId, attackerIp)
 
-  // Réagir aux changements de couleur de nœuds
+  // Réagir aux changements de couleur de nœuds + edge overrides
   const unsubTopology = topologyStore.subscribe(state => {
     if (!cy) return
     for (const [nodeId, status] of Object.entries(state.nodes)) {
@@ -212,6 +219,9 @@
         'border-color': NODE_COLORS[status].border,
         'border-width': status === 'normal' ? 2 : 3,
       })
+    }
+    for (const [edgeId, visibility] of Object.entries(state.edgeOverrides)) {
+      cy.$(`#${edgeId}`).style('display', visibility === 'hidden' ? 'none' : 'element')
     }
   })
 

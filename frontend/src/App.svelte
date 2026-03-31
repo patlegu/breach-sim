@@ -32,7 +32,7 @@
     ssh_brute_force: { ip: '185.220.101.47', role: 'Tor exit node' },
     log4shell:       { ip: '91.92.251.103',  role: 'Exploit scanner' },
     ddos_udp:        { ip: '45.95.147.88',   role: 'DDoS coordinator' },
-    ransomware_c2:   { ip: '192.168.2.15',   role: 'Hôte compromis (DMZ)' },
+    ransomware_c2:   { ip: '194.165.16.72',  role: 'C2 Cobalt Strike' },
   }
 
   async function loadScenario(id: string) {

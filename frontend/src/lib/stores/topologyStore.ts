@@ -4,6 +4,12 @@ export type NodeStatus = 'normal' | 'attacked' | 'defended'
 
 export interface TopologyState {
   nodes: Record<string, NodeStatus>
+  edgeOverrides: Record<string, 'hidden' | 'visible'>
+}
+
+interface EventEffect {
+  nodes?: Partial<Record<string, NodeStatus>>
+  edgeOverrides?: Record<string, 'hidden' | 'visible'>
 }
 
 const INITIAL: TopologyState = {
@@ -19,19 +25,23 @@ const INITIAL: TopologyState = {
     'srv-web': 'normal',
     'srv-db':  'normal',
   },
+  edgeOverrides: {},
 }
 
-const EVENT_MAP: Record<string, Partial<Record<string, NodeStatus>>> = {
-  // Scénarios externes (attaquant → réseau)
-  crowdsec_ban:      { attacker: 'attacked', crowdsec: 'defended' },
-  firewall_block:    { attacker: 'attacked', firewall: 'defended' },
-  filter_rule_added: { attacker: 'attacked', firewall: 'defended', dmz: 'defended' },
-  wireguard_rotate:  { wireguard: 'defended' },
-  wireguard_client:  { wireguard: 'defended' },
-  // Scénario ransomware C2 (interne → externe)
-  infected_beacon:   { infected: 'attacked', crowdsec: 'defended' },
-  egress_blocked:    { infected: 'attacked', firewall: 'defended' },
-  lateral_blocked:   { infected: 'attacked', firewall: 'defended', lan: 'defended' },
+const EVENT_MAP: Record<string, EventEffect> = {
+  // Scénarios externes
+  crowdsec_ban:      { nodes: { attacker: 'attacked', crowdsec: 'defended' } },
+  firewall_block:    { nodes: { attacker: 'attacked', firewall: 'defended' } },
+  filter_rule_added: { nodes: { attacker: 'attacked', firewall: 'defended', dmz: 'defended' } },
+  wireguard_rotate:  { nodes: { wireguard: 'defended' } },
+  // Scénario ransomware C2
+  infected_beacon:   { nodes: { infected: 'attacked', crowdsec: 'defended' } },
+  egress_blocked:    { nodes: { infected: 'attacked', firewall: 'defended' } },
+  lateral_blocked:   { nodes: { infected: 'attacked', firewall: 'defended', lan: 'defended' } },
+  wireguard_client:  {
+    nodes: { wireguard: 'defended' },
+    edgeOverrides: { 'e-lan-inf': 'hidden', 'e-inf-wg': 'visible' },
+  },
 }
 
 function createTopologyStore() {
@@ -40,10 +50,11 @@ function createTopologyStore() {
   return {
     subscribe,
     applyEvent(event: string) {
-      const changes = EVENT_MAP[event]
-      if (!changes) return
+      const effect = EVENT_MAP[event]
+      if (!effect) return
       update(s => ({
-        nodes: { ...s.nodes, ...changes },
+        nodes: { ...s.nodes, ...(effect.nodes ?? {}) } as Record<string, NodeStatus>,
+        edgeOverrides: { ...s.edgeOverrides, ...(effect.edgeOverrides ?? {}) },
       }))
     },
     reset() {
