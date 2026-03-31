@@ -46,8 +46,9 @@ resource "libvirt_network" "lan" {
   name      = "breach-${var.instance_id}-lan"
   mode      = "none"   # pas de NAT libvirt — OPNsense est le routeur
   autostart = true
-  # Pas d'addresses : évite que libvirt assigne 192.168.X.1 au bridge host
-  # (konflit avec l'IP LAN statique d'OPNsense)
+  # Dernière adresse du subnet pour le bridge host (ex: .254/24)
+  # OPNsense garde .1 (gateway), korrig accède au LAN via .254
+  addresses = ["${cidrhost(var.lan_cidr, -2)}/${split("/", var.lan_cidr)[1]}"]
 
   dhcp {
     enabled = false    # OPNsense gère le DHCP
