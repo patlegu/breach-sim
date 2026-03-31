@@ -13,9 +13,10 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV="${SCRIPT_DIR}/.venv"
-ONNX_DIR="${ONNX_DIR:-${SCRIPT_DIR}/onnx}"
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "${APP_DIR}")"
+VENV="${ROOT_DIR}/.venv"
+ONNX_DIR="${ONNX_DIR:-${ROOT_DIR}/onnx}"
 PORT="${PORT:-8888}"
 
 # Créer le venv si absent
@@ -32,13 +33,13 @@ fi
 source "${VENV}/bin/activate"
 
 # Installer les dépendances
-pip install -q -r "${SCRIPT_DIR}/backend/requirements.txt"
+pip install -q -r "${APP_DIR}/backend/requirements.txt"
 
 # Vérifier les modèles
 for agent in opnsense wireguard crowdsec; do
   if [ ! -f "${ONNX_DIR}/${agent}/model.onnx" ]; then
     echo "⚠️  Modèle manquant : ${ONNX_DIR}/${agent}/model.onnx"
-    echo "   Télécharge-les : bash scripts/download_models.sh"
+    echo "   Télécharge-les : bash app/scripts/download_models.sh"
     exit 1
   fi
 done
@@ -48,5 +49,5 @@ export ONNX_DIR="${ONNX_DIR}"
 echo "🚀 breach-sim démarré sur http://localhost:${PORT}"
 echo "   Modèles ONNX : ${ONNX_DIR}"
 
-cd "${SCRIPT_DIR}"
+cd "${APP_DIR}"
 uvicorn backend.main:app --host 0.0.0.0 --port "${PORT}" --workers 1

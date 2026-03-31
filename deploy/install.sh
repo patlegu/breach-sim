@@ -15,6 +15,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+APP_DIR="${ROOT_DIR}/app"
 VENV="${ROOT_DIR}/.venv"
 SERVICE_SRC="${SCRIPT_DIR}/breach-sim.service"
 SERVICE_DEST="/etc/systemd/system/breach-sim.service"
@@ -33,7 +34,7 @@ if [ ! -f "${VENV}/bin/activate" ]; then
 fi
 source "${VENV}/bin/activate"
 echo "  Installation des dépendances..."
-pip install -q -r "${ROOT_DIR}/backend/requirements.txt"
+pip install -q -r "${APP_DIR}/backend/requirements.txt"
 echo "  ✓ Dépendances installées"
 
 # ── 2. Modèles ONNX ───────────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ if $ALL_OK; then
   echo "  ✓ Modèles déjà présents"
 else
   echo "  Téléchargement des modèles (peut prendre plusieurs minutes)..."
-  bash "${ROOT_DIR}/scripts/download_models.sh"
+  bash "${APP_DIR}/scripts/download_models.sh"
 fi
 
 # ── 3. Service systemd ────────────────────────────────────────────────────────

@@ -6,9 +6,9 @@ Documentation=https://github.com/patlegu/breach-sim
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/srv/breach-sim
+WorkingDirectory=/srv/breach-sim/app
 
-# Venv créé une fois par : bash start.sh (ou scripts/setup.sh)
+# Venv créé une fois par : bash app/start.sh
 ExecStart=/srv/breach-sim/.venv/bin/uvicorn backend.main:app \
     --host 127.0.0.1 \
     --port 8888 \

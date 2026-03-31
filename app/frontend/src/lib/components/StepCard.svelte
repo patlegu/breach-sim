@@ -136,7 +136,7 @@
     {#if toolCall && status === 'done'}
       <div class="px-3 pb-3 border-t border-zinc-800 mt-1">
         <p class="text-xs text-zinc-500 mb-2 uppercase tracking-wider pt-2">Tool call</p>
-        <pre class="text-xs font-mono text-emerald-300 bg-zinc-950 rounded p-2 overflow-auto max-h-64 scrollbar-thin">{@html highlightJson(formatJson(toolCall))}</pre>
+        <pre class="text-xs font-mono text-emerald-300 bg-zinc-950 rounded p-2 overflow-auto max-h-64 scrollbar-thin whitespace-pre-wrap break-all">{formatJson(toolCall)}</pre>
       </div>
     {/if}
   {/if}

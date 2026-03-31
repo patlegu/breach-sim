@@ -3,8 +3,17 @@ __pycache__/
 .env
 venv/
 .venv/
-backend/static/
-frontend/node_modules/
-frontend/dist/
-*.onnx.data
-*.onnx
+onnx/
+
+# app
+app/backend/static/
+app/frontend/node_modules/
+app/frontend/dist/
+
+# infra
+infra/**/.terraform/
+infra/**/.terraform.lock.hcl
+infra/**/terraform.tfstate
+infra/**/terraform.tfstate.backup
+infra/**/terraform.tfvars
+infra/**/.cache/
