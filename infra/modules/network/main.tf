@@ -46,9 +46,8 @@ resource "libvirt_network" "lan" {
   name      = "breach-${var.instance_id}-lan"
   mode      = "none"   # pas de NAT libvirt — OPNsense est le routeur
   autostart = true
-  # Dernière adresse du subnet pour le bridge host (ex: .254/24)
-  # OPNsense garde .1 (gateway), korrig accède au LAN via .254
-  addresses = ["${cidrhost(var.lan_cidr, -2)}/${split("/", var.lan_cidr)[1]}"]
+  # Pas d'addresses en mode=none (le provider ne configure pas le bridge host)
+  # L'IP host (.254) est assignée par le provisioner lan_stp_off ci-dessous
 
   dhcp {
     enabled = false    # OPNsense gère le DHCP
@@ -58,7 +57,7 @@ resource "libvirt_network" "lan" {
 # Le bridge libvirt active STP par défaut, ce qui bloque les ports ~30s après
 # chaque (re)création de VM. On le désactive pour un lab.
 resource "terraform_data" "lan_stp_off" {
-  input = var.libvirt_uri
+  input = "${var.libvirt_uri}|${var.lan_cidr}"
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -68,6 +67,10 @@ resource "terraform_data" "lan_stp_off" {
       if [ -n "$BRIDGE" ]; then
         echo "==> Désactivation STP sur bridge $BRIDGE"
         ip link set "$BRIDGE" type bridge stp_state 0
+        HOST_IP="${cidrhost(var.lan_cidr, -2)}"
+        PREFIX="${split("/", var.lan_cidr)[1]}"
+        ip addr replace "$HOST_IP/$PREFIX" dev "$BRIDGE"
+        echo "==> IP $HOST_IP/$PREFIX assignée à $BRIDGE"
       fi
     EOT
   }
