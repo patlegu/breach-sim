@@ -66,7 +66,7 @@ resource "terraform_data" "lan_stp_off" {
         | awk '/Bridge:/{print $2}')
       if [ -n "$BRIDGE" ]; then
         echo "==> Désactivation STP sur bridge $BRIDGE"
-        brctl stp "$BRIDGE" off
+        ip link set "$BRIDGE" type bridge stp_state 0
       fi
     EOT
   }
