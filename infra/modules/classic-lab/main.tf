@@ -168,6 +168,12 @@ resource "libvirt_domain" "vm" {
     target_port = "0"
   }
 
+  graphics {
+    type        = "vnc"
+    listen_type = "address"
+    autoport    = true
+  }
+
   qemu_agent = true
   autostart  = true
 }

@@ -16,7 +16,9 @@ provider "libvirt" {
 resource "libvirt_pool" "images" {
   name = var.libvirt_pool
   type = "dir"
-  path = "/var/lib/libvirt/images"
+  target {
+    path = "/var/lib/libvirt/images"
+  }
 }
 
 # ── Réseau ────────────────────────────────────────────────────────────────────
