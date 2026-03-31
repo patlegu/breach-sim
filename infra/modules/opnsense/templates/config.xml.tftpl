@@ -98,8 +98,8 @@
     <lan>
       <enable>1</enable>
       <range>
-        <from>${cidrhost(lan_ip + "/" + lan_prefix, 10)}</from>
-        <to>${cidrhost(lan_ip + "/" + lan_prefix, 99)}</to>
+        <from>${dhcp_from}</from>
+        <to>${dhcp_to}</to>
       </range>
       <defaultleasetime>7200</defaultleasetime>
       <maxleasetime>86400</maxleasetime>

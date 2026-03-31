@@ -33,8 +33,10 @@ terraform {
 
 locals {
   name       = "breach-${var.instance_id}-opnsense"
-  lan_ip     = cidrhost(var.lan_cidr, 1)          # .1 = gateway LAN
+  lan_ip     = cidrhost(var.lan_cidr, 1)
   lan_prefix = split("/", var.lan_cidr)[1]
+  dhcp_from  = cidrhost(var.lan_cidr, 10)
+  dhcp_to    = cidrhost(var.lan_cidr, 99)
 }
 
 # ── Image de base OPNsense (qcow2) ───────────────────────────────────────────
@@ -123,6 +125,8 @@ resource "terraform_data" "config_iso" {
 ${templatefile("${path.module}/templates/config.xml.tftpl", {
         lan_ip      = local.lan_ip
         lan_prefix  = local.lan_prefix
+        dhcp_from   = local.dhcp_from
+        dhcp_to     = local.dhcp_to
         root_hash   = var.root_password_hash
         ssh_key     = var.ssh_public_key
         api_key     = var.api_key

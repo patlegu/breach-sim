@@ -22,7 +22,9 @@ terraform {
 
 locals {
   lan_prefix = split("/", var.lan_cidr)[1]
-  gateway    = cidrhost(var.lan_cidr, 1)   # OPNsense em1
+  gateway    = cidrhost(var.lan_cidr, 1)
+  # Préfixe 192.168.X extrait du CIDR pour les templates cloud-init
+  lan_base   = join(".", slice(split(".", cidrhost(var.lan_cidr, 0)), 0, 3))
 
   vms = {
     srv-web = {
@@ -125,6 +127,7 @@ resource "libvirt_cloudinit_disk" "vm" {
     hostname       = "breach${var.instance_id}-${each.key}"
     ssh_public_key = var.ssh_public_key
     instance_id    = var.instance_id
+    lan_base       = local.lan_base
   })
 
   network_config = templatefile("${path.module}/templates/network-config.yaml.tftpl", {
