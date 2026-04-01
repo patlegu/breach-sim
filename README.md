@@ -79,7 +79,8 @@ Base: `Qwen/Qwen2.5-3B-Instruct` fine-tuned with LoRA on cybersecurity function 
 **For live mode (optional):**
 - libvirt/KVM host (Linux)
 - OpenTofu 1.7+
-- virsh, qemu-img, mkisofs, bunzip2
+- virsh, qemu-img, bunzip2
+- ssh, scp (push config.xml vers OPNsense)
 
 ## Quick Start
 
@@ -122,14 +123,18 @@ Live mode connects the AI agents to a real isolated network running on KVM/libvi
 ```
 Internet (NAT)
      │
-  OPNsense (em0=WAN DHCP, em1=LAN 192.168.11.1)
-     │  192.168.11.0/24
-     ├── srv-web   192.168.11.10  (Nginx)
-     ├── srv-db    192.168.11.20  (PostgreSQL)
-     └── infected  192.168.11.15  (attack scripts)
+  OPNsense (vtnet0=WAN DHCP, vtnet1=LAN 192.168.11.1/24)
+     │  192.168.11.0/24  (DHCP 10–99)
+     ├── srv-web   192.168.11.10+  (Nginx)   ─┐
+     ├── srv-db    192.168.11.10+  (PostgreSQL) ├ DHCP OPNsense
+     └── infected  192.168.11.10+  (attack)   ─┘
+
+korrig (hyperviseur KVM) : 192.168.11.254 sur le bridge LAN (accès management)
 ```
 
 Multiple isolated instances run in parallel (INSTANCE=1 → `192.168.11.x`, INSTANCE=2 → `192.168.12.x`).
+
+> **Bootstrap OPNsense (premier déploiement uniquement)** : après `tofu apply`, activer SSH via la console OPNsense (option 14 du menu), ajouter la clé publique de l'hyperviseur dans `/root/.ssh/authorized_keys`, puis relancer `tofu apply`. Les déploiements suivants poussent `config.xml` automatiquement via SSH.
 
 ### Deploy a lab
 
