@@ -6,7 +6,8 @@ users:
   - name: breach
     sudo: ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
-    lock_passwd: true
+    lock_passwd: false
+    hashed_passwd: ${vm_password_hash}
     ssh_authorized_keys:
       - ${ssh_public_key}
 

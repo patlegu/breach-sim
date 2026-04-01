@@ -85,8 +85,9 @@ module "tpot" {
   dmz_network_id = module.network.dmz_network_id
   dmz_cidr       = module.network.dmz_cidr
   ssh_public_key = var.ssh_public_key
-  tpot_web_user  = var.tpot_web_user
-  tpot_web_pw    = var.tpot_web_pw
+  tpot_web_user    = var.tpot_web_user
+  tpot_web_pw      = var.tpot_web_pw
+  vm_password_hash = var.vm_password_hash
 
   depends_on = [module.classic_lab]
 }

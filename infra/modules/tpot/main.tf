@@ -46,10 +46,11 @@ resource "libvirt_volume" "tpot" {
 
 resource "terraform_data" "cloudinit_hash" {
   triggers_replace = sha256(templatefile("${path.module}/templates/user-data.yaml.tftpl", {
-    hostname      = "breach${var.instance_id}-tpot"
-    ssh_public_key = var.ssh_public_key
-    tpot_web_user = var.tpot_web_user
-    tpot_web_pw   = var.tpot_web_pw
+    hostname         = "breach${var.instance_id}-tpot"
+    ssh_public_key   = var.ssh_public_key
+    tpot_web_user    = var.tpot_web_user
+    tpot_web_pw      = var.tpot_web_pw
+    vm_password_hash = var.vm_password_hash
   }))
 }
 
@@ -58,10 +59,11 @@ resource "libvirt_cloudinit_disk" "tpot" {
   pool = var.libvirt_pool
 
   user_data = templatefile("${path.module}/templates/user-data.yaml.tftpl", {
-    hostname      = "breach${var.instance_id}-tpot"
-    ssh_public_key = var.ssh_public_key
-    tpot_web_user = var.tpot_web_user
-    tpot_web_pw   = var.tpot_web_pw
+    hostname         = "breach${var.instance_id}-tpot"
+    ssh_public_key   = var.ssh_public_key
+    tpot_web_user    = var.tpot_web_user
+    tpot_web_pw      = var.tpot_web_pw
+    vm_password_hash = var.vm_password_hash
   })
 
   network_config = templatefile("${path.module}/templates/network-config.yaml.tftpl", {
