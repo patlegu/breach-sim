@@ -71,20 +71,20 @@
 
   <!-- Interfaces réseau -->
   <interfaces>
-    <!-- WAN — vtnet0 -->
+    <!-- WAN — vtnet1 (défaut OPNsense nano : vtnet1=WAN → NAT libvirt) -->
     <wan>
       <enable>1</enable>
-      <if>vtnet0</if>
+      <if>vtnet1</if>
       <descr>WAN</descr>
       <ipaddr>dhcp</ipaddr>
       <ipaddrv6>dhcp6</ipaddrv6>
       <blockbogons>1</blockbogons>
     </wan>
 
-    <!-- DMZ — vtnet1 (T-Pot, srv-web — exposée à internet via port forwards) -->
+    <!-- DMZ — vtnet0 (défaut OPNsense nano : vtnet0=LAN → surchargé en DMZ) -->
     <opt1>
       <enable>1</enable>
-      <if>vtnet1</if>
+      <if>vtnet0</if>
       <descr>DMZ</descr>
       <ipaddr>${dmz_ip}</ipaddr>
       <subnet>${dmz_prefix}</subnet>
