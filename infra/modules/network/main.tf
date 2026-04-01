@@ -76,7 +76,8 @@ resource "libvirt_network" "lan" {
 # pour permettre l'accès management depuis korrig.
 
 resource "terraform_data" "dmz_stp_off" {
-  input = "${var.libvirt_uri}|${var.dmz_cidr}"
+  input            = "${var.libvirt_uri}|${var.dmz_cidr}"
+  triggers_replace = "${var.libvirt_uri}|${var.dmz_cidr}"
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -95,7 +96,8 @@ resource "terraform_data" "dmz_stp_off" {
 }
 
 resource "terraform_data" "lan_stp_off" {
-  input = "${var.libvirt_uri}|${var.lan_cidr}"
+  input            = "${var.libvirt_uri}|${var.lan_cidr}"
+  triggers_replace = "${var.libvirt_uri}|${var.lan_cidr}"
 
   provisioner "local-exec" {
     command = <<-EOT
