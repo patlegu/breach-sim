@@ -1,11 +1,13 @@
 # ── module/classic-lab ────────────────────────────────────────────────────────
 #
-# 3 VMs Debian sur le réseau LAN isolé du lab :
+# 3 VMs Debian réparties entre DMZ et LAN :
 #
-#   srv-web   — Nginx (192.168.{10+id}.10)
-#   srv-db    — PostgreSQL (192.168.{10+id}.20)
-#   infected  — poste "compromis" (192.168.{10+id}.15)
-#              scripts d'attaque contrôlés, installés mais non démarrés
+#   DMZ (192.168.{10+id}.0/24) — exposée via OPNsense :
+#     srv-web  .10 — Nginx (frontal HTTP)
+#
+#   LAN (192.168.{20+id}.0/24) — isolée :
+#     srv-db   .10 — PostgreSQL
+#     srv-app  .20 — serveur applicatif Flask (cible passive)
 #
 # Toutes les VMs utilisent l'image Debian cloud (qcow2) en CoW.
 # La config réseau (IP statique, gateway OPNsense, DNS) est injectée via
@@ -21,32 +23,46 @@ terraform {
 }
 
 locals {
-  lan_prefix = split("/", var.lan_cidr)[1]
-  gateway    = cidrhost(var.lan_cidr, 1)
-  # Préfixe 192.168.X extrait du CIDR pour les templates cloud-init
-  lan_base   = join(".", slice(split(".", cidrhost(var.lan_cidr, 0)), 0, 3))
+  dmz_prefix  = split("/", var.dmz_cidr)[1]
+  lan_prefix  = split("/", var.lan_cidr)[1]
+  dmz_gateway = cidrhost(var.dmz_cidr, 1)
+  lan_gateway = cidrhost(var.lan_cidr, 1)
+  dmz_base    = join(".", slice(split(".", cidrhost(var.dmz_cidr, 0)), 0, 3))
+  lan_base    = join(".", slice(split(".", cidrhost(var.lan_cidr, 0)), 0, 3))
 
   vms = {
     srv-web = {
-      ip       = cidrhost(var.lan_cidr, 10)
-      vcpu     = 1
-      memory   = 1024
-      disk     = 10737418240   # 10 GiB
-      role     = "web"
+      ip         = cidrhost(var.dmz_cidr, 10)
+      prefix     = local.dmz_prefix
+      gateway    = local.dmz_gateway
+      network_id = var.dmz_network_id
+      net_base   = local.dmz_base
+      vcpu       = 1
+      memory     = 1024
+      disk       = 10737418240   # 10 GiB
+      role       = "web"
     }
     srv-db = {
-      ip       = cidrhost(var.lan_cidr, 20)
-      vcpu     = 1
-      memory   = 1024
-      disk     = 10737418240
-      role     = "db"
+      ip         = cidrhost(var.lan_cidr, 10)
+      prefix     = local.lan_prefix
+      gateway    = local.lan_gateway
+      network_id = var.lan_network_id
+      net_base   = local.lan_base
+      vcpu       = 1
+      memory     = 1024
+      disk       = 10737418240
+      role       = "db"
     }
-    infected = {
-      ip       = cidrhost(var.lan_cidr, 15)
-      vcpu     = 1
-      memory   = 1024
-      disk     = 10737418240
-      role     = "infected"
+    srv-app = {
+      ip         = cidrhost(var.lan_cidr, 20)
+      prefix     = local.lan_prefix
+      gateway    = local.lan_gateway
+      network_id = var.lan_network_id
+      net_base   = local.lan_base
+      vcpu       = 1
+      memory     = 1024
+      disk       = 10737418240
+      role       = "app"
     }
   }
 }
@@ -129,12 +145,12 @@ resource "terraform_data" "cloudinit_hash" {
       ssh_public_key   = var.ssh_public_key
       vm_password_hash = var.vm_password_hash
       instance_id      = var.instance_id
-      lan_base         = local.lan_base
+      net_base         = each.value.net_base
     }),
     templatefile("${path.module}/templates/network-config.yaml.tftpl", {
       ip      = each.value.ip
-      prefix  = local.lan_prefix
-      gateway = local.gateway
+      prefix  = each.value.prefix
+      gateway = each.value.gateway
     }),
   ]))
 }
@@ -152,13 +168,13 @@ resource "libvirt_cloudinit_disk" "vm" {
     ssh_public_key   = var.ssh_public_key
     vm_password_hash = var.vm_password_hash
     instance_id      = var.instance_id
-    lan_base         = local.lan_base
+    net_base         = each.value.net_base
   })
 
   network_config = templatefile("${path.module}/templates/network-config.yaml.tftpl", {
     ip      = each.value.ip
-    prefix  = local.lan_prefix
-    gateway = local.gateway
+    prefix  = each.value.prefix
+    gateway = each.value.gateway
   })
 
   lifecycle {
@@ -186,9 +202,9 @@ resource "libvirt_domain" "vm" {
 
   cloudinit = libvirt_cloudinit_disk.vm[each.key].id
 
-  # IPs statiques configurées via cloud-init — pas de DHCP libvirt sur le LAN
+  # Réseau selon la zone (DMZ ou LAN) — défini dans local.vms
   network_interface {
-    network_id     = var.lan_network_id
+    network_id     = each.value.network_id
     wait_for_lease = false
   }
 

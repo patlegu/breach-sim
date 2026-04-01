@@ -14,8 +14,14 @@ variable "wan_cidr" {
   # ex : "10.0.1.0/24" pour instance 1, "10.0.2.0/24" pour instance 2
 }
 
-variable "lan_cidr" {
-  description = "CIDR du réseau LAN (isolé, routé par OPNsense)."
+variable "dmz_cidr" {
+  description = "CIDR du réseau DMZ (isolé, exposé à internet via OPNsense)."
   type        = string
-  # ex : "192.168.11.0/24" pour instance 1, "192.168.12.0/24" pour instance 2
+  # ex : "192.168.11.0/24" pour instance 1, "192.168.21.0/24" pour instance 2
+}
+
+variable "lan_cidr" {
+  description = "CIDR du réseau LAN (isolé, non accessible depuis internet)."
+  type        = string
+  # ex : "192.168.12.0/24" pour instance 1, "192.168.22.0/24" pour instance 2
 }

@@ -30,21 +30,30 @@ terraform {
 
 locals {
   name       = "breach-${var.instance_id}-opnsense"
+  dmz_ip     = cidrhost(var.dmz_cidr, 1)
+  dmz_prefix = split("/", var.dmz_cidr)[1]
   lan_ip     = cidrhost(var.lan_cidr, 1)
   lan_prefix = split("/", var.lan_cidr)[1]
-  dhcp_from  = cidrhost(var.lan_cidr, 10)
-  dhcp_to    = cidrhost(var.lan_cidr, 99)
+  # DHCP séparé par zone
+  dmz_dhcp_from = cidrhost(var.dmz_cidr, 10)
+  dmz_dhcp_to   = cidrhost(var.dmz_cidr, 99)
+  lan_dhcp_from = cidrhost(var.lan_cidr, 10)
+  lan_dhcp_to   = cidrhost(var.lan_cidr, 99)
 
   config_xml = templatefile("${path.module}/templates/config.xml.tftpl", {
-    hostname   = "breach${var.instance_id}-opnsense"
-    root_hash  = var.root_password_hash
-    ssh_key    = var.ssh_public_key
-    api_key    = var.api_key
-    api_secret = var.api_secret
-    lan_ip     = local.lan_ip
-    lan_prefix = local.lan_prefix
-    dhcp_from  = local.dhcp_from
-    dhcp_to    = local.dhcp_to
+    hostname      = "breach${var.instance_id}-opnsense"
+    root_hash     = var.root_password_hash
+    ssh_key       = var.ssh_public_key
+    api_key       = var.api_key
+    api_secret    = var.api_secret
+    dmz_ip        = local.dmz_ip
+    dmz_prefix    = local.dmz_prefix
+    dmz_dhcp_from = local.dmz_dhcp_from
+    dmz_dhcp_to   = local.dmz_dhcp_to
+    lan_ip        = local.lan_ip
+    lan_prefix    = local.lan_prefix
+    lan_dhcp_from = local.lan_dhcp_from
+    lan_dhcp_to   = local.lan_dhcp_to
   })
 }
 
@@ -139,13 +148,19 @@ resource "libvirt_domain" "opnsense" {
     scsi      = false
   }
 
-  # vtnet0 — WAN (OPNsense nano défaut : vtnet0=WAN, vtnet1=LAN)
+  # vtnet0 — WAN
   network_interface {
     network_id     = var.wan_network_id
     wait_for_lease = false
   }
 
-  # vtnet1 — LAN
+  # vtnet1 — DMZ (T-Pot, srv-web)
+  network_interface {
+    network_id     = var.dmz_network_id
+    wait_for_lease = false
+  }
+
+  # vtnet2 — LAN (srv-db, srv-app)
   network_interface {
     network_id     = var.lan_network_id
     wait_for_lease = false

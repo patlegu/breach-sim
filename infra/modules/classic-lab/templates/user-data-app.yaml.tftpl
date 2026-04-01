@@ -1,0 +1,69 @@
+#cloud-config
+# VM "serveur applicatif" — application métier passive sur le réseau LAN.
+# Cible potentielle des scénarios d'attaque, sans outils offensifs.
+hostname: ${hostname}
+fqdn: ${hostname}.breach.local
+
+users:
+  - name: breach
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    lock_passwd: false
+    hashed_passwd: ${vm_password_hash}
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+package_update: true
+package_upgrade: false
+packages:
+  - curl
+  - wget
+  - python3
+  - python3-pip
+  - python3-flask
+  - netcat-openbsd
+  - qemu-guest-agent
+
+write_files:
+  - path: /opt/app/server.py
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env python3
+      """Application métier simulée — écoute sur 8080."""
+      from flask import Flask, request, jsonify
+      import os, datetime
+
+      app = Flask(__name__)
+
+      @app.route("/")
+      def index():
+          return jsonify({"service": "breach-app", "status": "running",
+                          "host": os.uname().nodename,
+                          "time": datetime.datetime.utcnow().isoformat()})
+
+      @app.route("/api/data")
+      def data():
+          return jsonify({"records": 42, "db": "${net_base}.10"})
+
+      if __name__ == "__main__":
+          app.run(host="0.0.0.0", port=8080)
+
+  - path: /etc/systemd/system/breach-app.service
+    content: |
+      [Unit]
+      Description=breach-sim application server
+      After=network.target
+
+      [Service]
+      ExecStart=/usr/bin/python3 /opt/app/server.py
+      Restart=always
+      User=breach
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl enable qemu-guest-agent && systemctl start qemu-guest-agent
+  - systemctl enable breach-app && systemctl start breach-app
+  - echo "srv-app breach-${instance_id} prêt sur :8080"

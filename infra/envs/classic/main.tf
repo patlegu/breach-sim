@@ -46,7 +46,8 @@ module "network" {
   instance_id = var.instance_id
   libvirt_uri = var.libvirt_uri
   wan_cidr    = "10.0.${var.instance_id}.0/24"
-  lan_cidr    = "192.168.${10 + var.instance_id}.0/24"
+  dmz_cidr    = "192.168.${10 + var.instance_id}.0/24"
+  lan_cidr    = "192.168.${20 + var.instance_id}.0/24"
 }
 
 # ── OPNsense ──────────────────────────────────────────────────────────────────
@@ -58,7 +59,9 @@ module "opnsense" {
   libvirt_uri        = var.libvirt_uri
   libvirt_pool       = var.libvirt_pool
   wan_network_id     = module.network.wan_network_id
+  dmz_network_id     = module.network.dmz_network_id
   lan_network_id     = module.network.lan_network_id
+  dmz_cidr           = module.network.dmz_cidr
   lan_cidr           = module.network.lan_cidr
   opnsense_image_url = var.opnsense_image_url
   image_cache_dir    = var.image_cache_dir
@@ -75,11 +78,13 @@ module "opnsense" {
 module "classic_lab" {
   source = "../../modules/classic-lab"
 
-  instance_id    = var.instance_id
-  libvirt_uri    = var.libvirt_uri
-  libvirt_pool   = var.libvirt_pool
-  lan_network_id = module.network.lan_network_id
-  lan_cidr       = module.network.lan_cidr
+  instance_id      = var.instance_id
+  libvirt_uri      = var.libvirt_uri
+  libvirt_pool     = var.libvirt_pool
+  dmz_network_id   = module.network.dmz_network_id
+  lan_network_id   = module.network.lan_network_id
+  dmz_cidr         = module.network.dmz_cidr
+  lan_cidr         = module.network.lan_cidr
   ssh_public_key   = var.ssh_public_key
   vm_password_hash = var.vm_password_hash
   debian_image_url = var.debian_image_url

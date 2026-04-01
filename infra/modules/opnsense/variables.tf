@@ -14,17 +14,27 @@ variable "libvirt_pool" {
 }
 
 variable "wan_network_id" {
-  description = "ID libvirt du réseau WAN (depuis module/network)"
+  description = "ID libvirt du réseau WAN"
+  type        = string
+}
+
+variable "dmz_network_id" {
+  description = "ID libvirt du réseau DMZ (vtnet1 OPNsense)"
   type        = string
 }
 
 variable "lan_network_id" {
-  description = "ID libvirt du réseau LAN (depuis module/network)"
+  description = "ID libvirt du réseau LAN (vtnet2 OPNsense)"
+  type        = string
+}
+
+variable "dmz_cidr" {
+  description = "CIDR DMZ — IP statique OPNsense (.1), DHCP honeypots/web"
   type        = string
 }
 
 variable "lan_cidr" {
-  description = "CIDR LAN — utilisé pour calculer l'IP statique OPNsense (.1)"
+  description = "CIDR LAN — IP statique OPNsense (.1), DHCP db/app"
   type        = string
 }
 

@@ -1,17 +1,23 @@
 # ── module/network ────────────────────────────────────────────────────────────
 #
-# Crée deux réseaux libvirt pour un lab breach-sim :
+# Crée trois réseaux libvirt pour un lab breach-sim :
 #
-#   virbr-breach-{id}-wan  (NAT, 10.0.{id}.0/24)
-#     └── OPNsense em0 (WAN) — obtient une IP par DHCP
+#   breach-{id}-wan  (NAT, 10.0.{id}.0/24)
+#     └── OPNsense vtnet0 (WAN) — IP statique 10.0.{id}.2
 #         Masquerade sortant vers l'interface physique du serveur
 #
-#   virbr-breach-{id}-lan  (isolated, 192.168.{10+id}.0/24)
-#     └── OPNsense em1 (LAN) — 192.168.{10+id}.1 (statique, configuré dans OPNsense)
-#         srv-web, srv-db, infected
+#   breach-{id}-dmz  (isolated, 192.168.{10+id}.0/24)
+#     └── OPNsense vtnet1 (DMZ) — 192.168.{10+id}.1
+#         T-Pot (honeypot), srv-web
+#         Exposée à internet via port forwards OPNsense + DNAT korrig
 #
-# Le réseau LAN est isolé (mode="none") : tout le trafic passe par OPNsense.
-# DHCP libvirt désactivé sur LAN — OPNsense fait office de DHCP.
+#   breach-{id}-lan  (isolated, 192.168.{20+id}.0/24)
+#     └── OPNsense vtnet2 (LAN) — 192.168.{20+id}.1
+#         srv-db, srv-app
+#         Isolée, non accessible depuis internet ni la DMZ
+#
+# DHCP libvirt désactivé sur DMZ et LAN — OPNsense fait office de DHCP.
+# Le bridge host reçoit la dernière IP du subnet (.254) via provisioner.
 
 terraform {
   required_providers {
@@ -40,22 +46,54 @@ resource "libvirt_network" "wan" {
   }
 }
 
-# ── LAN — isolé, routé par OPNsense ──────────────────────────────────────────
+# ── DMZ — isolée, routée par OPNsense, exposée à internet ────────────────────
 
-resource "libvirt_network" "lan" {
-  name      = "breach-${var.instance_id}-lan"
-  mode      = "none"   # pas de NAT libvirt — OPNsense est le routeur
+resource "libvirt_network" "dmz" {
+  name      = "breach-${var.instance_id}-dmz"
+  mode      = "none"
   autostart = true
-  # Pas d'addresses en mode=none (le provider ne configure pas le bridge host)
-  # L'IP host (.254) est assignée par le provisioner lan_stp_off ci-dessous
 
   dhcp {
-    enabled = false    # OPNsense gère le DHCP
+    enabled = false
   }
 }
 
-# Le bridge libvirt active STP par défaut, ce qui bloque les ports ~30s après
-# chaque (re)création de VM. On le désactive pour un lab.
+# ── LAN — isolé, routé par OPNsense, non accessible depuis internet ───────────
+
+resource "libvirt_network" "lan" {
+  name      = "breach-${var.instance_id}-lan"
+  mode      = "none"
+  autostart = true
+
+  dhcp {
+    enabled = false
+  }
+}
+
+# ── STP off + IP host sur DMZ et LAN ─────────────────────────────────────────
+# Le bridge libvirt active STP par défaut (~30s de blocage après création VM).
+# On désactive STP et on assigne la dernière IP du subnet au bridge host
+# pour permettre l'accès management depuis korrig.
+
+resource "terraform_data" "dmz_stp_off" {
+  input = "${var.libvirt_uri}|${var.dmz_cidr}"
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -euo pipefail
+      BRIDGE=$(virsh -c ${var.libvirt_uri} net-info breach-${var.instance_id}-dmz \
+        | awk '/Bridge:/{print $2}')
+      if [ -n "$BRIDGE" ]; then
+        ip link set "$BRIDGE" type bridge stp_state 0
+        ip addr replace "${cidrhost(var.dmz_cidr, -2)}/${split("/", var.dmz_cidr)[1]}" dev "$BRIDGE"
+        echo "==> DMZ bridge $BRIDGE : STP off, IP ${cidrhost(var.dmz_cidr, -2)}"
+      fi
+    EOT
+  }
+
+  depends_on = [libvirt_network.dmz]
+}
+
 resource "terraform_data" "lan_stp_off" {
   input = "${var.libvirt_uri}|${var.lan_cidr}"
 
@@ -65,12 +103,9 @@ resource "terraform_data" "lan_stp_off" {
       BRIDGE=$(virsh -c ${var.libvirt_uri} net-info breach-${var.instance_id}-lan \
         | awk '/Bridge:/{print $2}')
       if [ -n "$BRIDGE" ]; then
-        echo "==> Désactivation STP sur bridge $BRIDGE"
         ip link set "$BRIDGE" type bridge stp_state 0
-        HOST_IP="${cidrhost(var.lan_cidr, -2)}"
-        PREFIX="${split("/", var.lan_cidr)[1]}"
-        ip addr replace "$HOST_IP/$PREFIX" dev "$BRIDGE"
-        echo "==> IP $HOST_IP/$PREFIX assignée à $BRIDGE"
+        ip addr replace "${cidrhost(var.lan_cidr, -2)}/${split("/", var.lan_cidr)[1]}" dev "$BRIDGE"
+        echo "==> LAN bridge $BRIDGE : STP off, IP ${cidrhost(var.lan_cidr, -2)}"
       fi
     EOT
   }

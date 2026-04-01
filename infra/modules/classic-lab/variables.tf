@@ -12,13 +12,23 @@ variable "libvirt_pool" {
   default = "images"
 }
 
+variable "dmz_network_id" {
+  description = "ID libvirt du réseau DMZ (srv-web)"
+  type        = string
+}
+
 variable "lan_network_id" {
-  description = "ID libvirt du réseau LAN (depuis module/network)"
+  description = "ID libvirt du réseau LAN (srv-db, srv-app)"
+  type        = string
+}
+
+variable "dmz_cidr" {
+  description = "CIDR DMZ — calcul des IPs statiques (srv-web)"
   type        = string
 }
 
 variable "lan_cidr" {
-  description = "CIDR LAN — calcul des IPs statiques"
+  description = "CIDR LAN — calcul des IPs statiques (srv-db, srv-app)"
   type        = string
 }
 

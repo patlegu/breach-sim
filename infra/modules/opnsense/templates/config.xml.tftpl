@@ -71,7 +71,7 @@
 
   <!-- Interfaces réseau -->
   <interfaces>
-    <!-- WAN — vtnet0 (première interface libvirt → premier vtnet KVM) -->
+    <!-- WAN — vtnet0 -->
     <wan>
       <enable>1</enable>
       <if>vtnet0</if>
@@ -81,25 +81,41 @@
       <blockbogons>1</blockbogons>
     </wan>
 
-    <!-- LAN — vtnet1 (deuxième interface libvirt → deuxième vtnet KVM) -->
-    <lan>
+    <!-- DMZ — vtnet1 (T-Pot, srv-web — exposée à internet via port forwards) -->
+    <opt1>
       <enable>1</enable>
       <if>vtnet1</if>
+      <descr>DMZ</descr>
+      <ipaddr>${dmz_ip}</ipaddr>
+      <subnet>${dmz_prefix}</subnet>
+    </opt1>
+
+    <!-- LAN — vtnet2 (srv-db, srv-app — isolée) -->
+    <lan>
+      <enable>1</enable>
+      <if>vtnet2</if>
       <descr>LAN</descr>
       <ipaddr>${lan_ip}</ipaddr>
       <subnet>${lan_prefix}</subnet>
-      <ipaddrv6>track6</ipaddrv6>
-      <subnetv6>64</subnetv6>
     </lan>
   </interfaces>
 
-  <!-- DHCP server LAN -->
+  <!-- DHCP DMZ et LAN -->
   <dhcpd>
+    <opt1>
+      <enable>1</enable>
+      <range>
+        <from>${dmz_dhcp_from}</from>
+        <to>${dmz_dhcp_to}</to>
+      </range>
+      <defaultleasetime>7200</defaultleasetime>
+      <maxleasetime>86400</maxleasetime>
+    </opt1>
     <lan>
       <enable>1</enable>
       <range>
-        <from>${dhcp_from}</from>
-        <to>${dhcp_to}</to>
+        <from>${lan_dhcp_from}</from>
+        <to>${lan_dhcp_to}</to>
       </range>
       <defaultleasetime>7200</defaultleasetime>
       <maxleasetime>86400</maxleasetime>
@@ -113,8 +129,19 @@
     </outbound>
   </nat>
 
-  <!-- Règles firewall de base -->
+  <!-- Règles firewall inter-zones -->
   <filter>
+    <!-- DMZ : tout sortant autorisé (internet + LAN bloqué par défaut) -->
+    <rule>
+      <type>pass</type>
+      <interface>opt1</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>any</protocol>
+      <source><network>opt1</network></source>
+      <destination><any/></destination>
+      <descr>DMZ to internet</descr>
+    </rule>
+    <!-- LAN : tout sortant autorisé -->
     <rule>
       <type>pass</type>
       <interface>lan</interface>
@@ -124,14 +151,25 @@
       <destination><any/></destination>
       <descr>LAN to any</descr>
     </rule>
+    <!-- WAN : HTTPS pour accès API OPNsense depuis korrig -->
     <rule>
       <type>pass</type>
       <interface>wan</interface>
       <ipprotocol>inet</ipprotocol>
       <protocol>tcp</protocol>
       <source><any/></source>
-      <destination><any/><port>443</port></destination>
-      <descr>Allow HTTPS API access from WAN</descr>
+      <destination><network>wanip</network><port>443</port></destination>
+      <descr>Allow HTTPS API from WAN</descr>
+    </rule>
+    <!-- WAN : SSH OPNsense depuis korrig (accès management) -->
+    <rule>
+      <type>pass</type>
+      <interface>wan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source><any/></source>
+      <destination><network>wanip</network><port>22</port></destination>
+      <descr>Allow SSH from WAN</descr>
     </rule>
   </filter>
 
