@@ -194,25 +194,46 @@ resource "terraform_data" "opnsense_config_push" {
   provisioner "local-exec" {
     command = <<-EOT
       set -euo pipefail
-      LAN_IP="${local.lan_ip}"
       CFG="${local_sensitive_file.opnsense_config.filename}"
       SSH_OPTS="-o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5"
 
-      echo "==> Attente SSH OPNsense ($LAN_IP)..."
-      for i in $(seq 1 30); do
-        if ssh $SSH_OPTS root@$LAN_IP true 2>/dev/null; then
-          echo "==> SSH disponible (tentative $i)"
+      # Tenter la connexion sur DMZ (.1 vtnet1) puis LAN (.1 vtnet2)
+      # La DMZ est l'interface la plus stable : accessible depuis le bridge korrig
+      # même avant que config.xml soit appliqué (ancienne interface LAN).
+      OPNSENSE_IP=""
+      for CANDIDATE in "${local.dmz_ip}" "${local.lan_ip}"; do
+        if ssh $SSH_OPTS root@$CANDIDATE true 2>/dev/null; then
+          OPNSENSE_IP="$CANDIDATE"
+          echo "==> OPNsense joignable sur $OPNSENSE_IP"
           break
         fi
-        echo "  tentative $i/30, retry dans 10s..."
-        sleep 10
       done
 
-      echo "==> Push config.xml..."
-      scp $SSH_OPTS "$CFG" root@$LAN_IP:/conf/config.xml
+      if [ -z "$OPNSENSE_IP" ]; then
+        echo "==> Attente SSH OPNsense (DMZ ${local.dmz_ip})..."
+        for i in $(seq 1 30); do
+          if ssh $SSH_OPTS root@${local.dmz_ip} true 2>/dev/null; then
+            OPNSENSE_IP="${local.dmz_ip}"
+            echo "==> SSH disponible (tentative $i)"
+            break
+          fi
+          echo "  tentative $i/30, retry dans 10s..."
+          sleep 10
+        done
+      fi
+
+      if [ -z "$OPNSENSE_IP" ]; then
+        echo "ERREUR : OPNsense inaccessible via SSH."
+        echo "Bootstrap requis : activer SSH sur OPNsense (console menu 14)"
+        echo "puis ajouter la clé SSH dans /root/.ssh/authorized_keys"
+        exit 1
+      fi
+
+      echo "==> Push config.xml vers $OPNSENSE_IP..."
+      scp $SSH_OPTS "$CFG" root@$OPNSENSE_IP:/conf/config.xml
 
       echo "==> Rechargement config OPNsense..."
-      ssh $SSH_OPTS root@$LAN_IP \
+      ssh $SSH_OPTS root@$OPNSENSE_IP \
         "configctl filter reload; /usr/local/sbin/pluginctl -s openssh restart" || true
 
       echo "==> Config OPNsense appliquée."
