@@ -1,0 +1,57 @@
+#cloud-config
+hostname: ${hostname}
+fqdn: ${hostname}.breach.local
+
+users:
+  - name: breach
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+write_files:
+  # Script d'installation T-Pot CE (non-interactif)
+  - path: /opt/tpot-install.sh
+    permissions: '0755'
+    owner: root:root
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      exec > >(tee /var/log/tpot-install.log) 2>&1
+      echo "==> Début installation T-Pot CE $(date)"
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y
+      apt-get install -y git curl
+      git clone https://github.com/telekom-security/tpotce /opt/tpotce
+      cd /opt/tpotce
+      export myCONF_WEB_USER="${tpot_web_user}"
+      export myCONF_WEB_PW="${tpot_web_pw}"
+      ./install.sh --type=auto
+      touch /opt/tpot-installed
+      echo "==> Installation terminée $(date) — reboot..."
+
+  # Service systemd oneshot — s'exécute une seule fois au premier boot
+  - path: /etc/systemd/system/tpot-install.service
+    content: |
+      [Unit]
+      Description=T-Pot CE Initial Installation
+      After=network-online.target cloud-init-local.service
+      Wants=network-online.target
+      ConditionPathExists=!/opt/tpot-installed
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/opt/tpot-install.sh
+      StandardOutput=journal+console
+      StandardError=journal+console
+      TimeoutStartSec=3600
+
+      [Install]
+      WantedBy=multi-user.target
+
+runcmd:
+  - systemctl daemon-reload
+  - systemctl enable tpot-install.service
+  - systemctl start tpot-install.service

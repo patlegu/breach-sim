@@ -73,6 +73,24 @@ module "opnsense" {
   depends_on = [terraform_data.libvirt_pool]
 }
 
+# ── T-Pot honeypot (DMZ .50) ─────────────────────────────────────────────────
+# Dépend de classic_lab pour que debian-base.qcow2 soit déjà dans le pool.
+
+module "tpot" {
+  source = "../../modules/tpot"
+
+  instance_id    = var.instance_id
+  libvirt_uri    = var.libvirt_uri
+  libvirt_pool   = var.libvirt_pool
+  dmz_network_id = module.network.dmz_network_id
+  dmz_cidr       = module.network.dmz_cidr
+  ssh_public_key = var.ssh_public_key
+  tpot_web_user  = var.tpot_web_user
+  tpot_web_pw    = var.tpot_web_pw
+
+  depends_on = [module.classic_lab]
+}
+
 # ── VMs Linux (cloud-init) ────────────────────────────────────────────────────
 
 module "classic_lab" {

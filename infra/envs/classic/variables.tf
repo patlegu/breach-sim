@@ -63,3 +63,15 @@ variable "opnsense_api_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "tpot_web_user" {
+  description = "Utilisateur interface web T-Pot"
+  type        = string
+  default     = "admin"
+}
+
+variable "tpot_web_pw" {
+  description = "Mot de passe interface web T-Pot (min 8 chars)"
+  type        = string
+  sensitive   = true
+}
