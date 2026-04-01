@@ -246,7 +246,7 @@ resource "terraform_data" "opnsense_config_push" {
       #    les nouveaux assignments d'interfaces
       echo "==> Activation console série + reboot..."
       ssh $SSH_OPTS root@$WAN_IP \
-        "printf 'boot_multicons=\"YES\"\nboot_serial=\"YES\"\ncomconsole_speed=\"115200\"\nconsole=\"comconsole,vidconsole\"\n' >> /boot/loader.conf.local; reboot" || true
+        "printf 'boot_multicons=\"YES\"\nboot_serial=\"YES\"\ncomconsole_speed=\"115200\"\nconsole=\"comconsole,vidconsole\"\n' >> /boot/loader.conf.local; sed -i '' 's/ttyu0.*off secure/ttyu0   \"\/usr\/libexec\/getty al.3wire.115200\"    vt100   onifconsole secure/' /etc/ttys; reboot" || true
 
       # 5. Attendre que OPNsense redémarre et soit joignable sur DMZ
       echo "==> Attente redémarrage OPNsense (DMZ ${local.dmz_ip})..."
