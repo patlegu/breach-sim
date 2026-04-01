@@ -204,14 +204,14 @@ resource "terraform_data" "opnsense_config_push" {
       #    guest (vtnet0/vtnet1) → on interroge directement le réseau NAT.
       echo "==> Recherche IP WAN OPNsense..."
       WAN_IP=""
-      for i in $(seq 1 30); do
+      for i in $(seq 1 60); do
         WAN_IP=$($VIRSH net-dhcp-leases breach-${var.instance_id}-wan 2>/dev/null \
           | awk 'NR>2 && $5 != "" {gsub(/\/.*/, "", $5); print $5}' | head -1)
         if [ -n "$WAN_IP" ]; then
           echo "==> IP WAN trouvée : $WAN_IP (tentative $i)"
           break
         fi
-        echo "  attente IP DHCP WAN... tentative $i/30"
+        echo "  attente IP DHCP WAN... tentative $i/60"
         sleep 10
       done
 
