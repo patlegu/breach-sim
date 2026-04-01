@@ -199,13 +199,14 @@ resource "terraform_data" "opnsense_config_push" {
       SSH_OPTS="-o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5"
       VIRSH="virsh -c ${var.libvirt_uri}"
 
-      # 1. Trouver l'IP WAN d'OPNsense (vtnet1 obtient une IP DHCP du NAT libvirt
-      #    dès le premier boot, sans configuration préalable)
+      # 1. Trouver l'IP WAN d'OPNsense via les leases DHCP du réseau WAN libvirt.
+      #    virsh domifaddr affiche les noms tap hôte (vnet0/vnet1), pas les noms
+      #    guest (vtnet0/vtnet1) → on interroge directement le réseau NAT.
       echo "==> Recherche IP WAN OPNsense..."
       WAN_IP=""
       for i in $(seq 1 30); do
-        WAN_IP=$($VIRSH domifaddr breach-${var.instance_id}-opnsense 2>/dev/null \
-          | awk '/vtnet1/{gsub(/\/.*/, "", $4); print $4}' | head -1)
+        WAN_IP=$($VIRSH net-dhcp-leases breach-${var.instance_id}-wan 2>/dev/null \
+          | awk 'NR>2 && $5 != "" {gsub(/\/.*/, "", $5); print $5}' | head -1)
         if [ -n "$WAN_IP" ]; then
           echo "==> IP WAN trouvée : $WAN_IP (tentative $i)"
           break
