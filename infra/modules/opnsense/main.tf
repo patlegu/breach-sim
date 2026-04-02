@@ -160,6 +160,12 @@ resource "libvirt_volume" "opnsense" {
   format           = "qcow2"
   size             = var.disk_size
 
+  # Le provider libvirt ne relit pas la backing store lors d'un import.
+  # ignore_changes évite un replace destructif sur un volume existant.
+  lifecycle {
+    ignore_changes = [base_volume_name, base_volume_pool]
+  }
+
   depends_on = [terraform_data.opnsense_base_volume]
 }
 
