@@ -62,6 +62,7 @@ module "opnsense" {
   dmz_network_id     = module.network.dmz_network_id
   lan_network_id     = module.network.lan_network_id
   dmz_cidr           = module.network.dmz_cidr
+  dmz_host_ip        = module.network.dmz_host_ip
   lan_cidr           = module.network.lan_cidr
   opnsense_image_url = var.opnsense_image_url
   image_cache_dir    = var.image_cache_dir

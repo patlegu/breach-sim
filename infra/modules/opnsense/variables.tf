@@ -33,6 +33,11 @@ variable "dmz_cidr" {
   type        = string
 }
 
+variable "dmz_host_ip" {
+  description = "IP hôte du bridge DMZ (unique par instance) — utilisée pour bind SSH vers OPNsense"
+  type        = string
+}
+
 variable "lan_cidr" {
   description = "CIDR LAN — IP statique OPNsense (.1), DHCP db/app"
   type        = string

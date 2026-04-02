@@ -87,8 +87,8 @@ resource "terraform_data" "dmz_stp_off" {
       if [ -n "$BRIDGE" ]; then
         ip link set "$BRIDGE" type bridge stp_state 0
         ip addr flush dev "$BRIDGE"
-        ip addr add "${cidrhost(var.dmz_cidr, -2)}/${split("/", var.dmz_cidr)[1]}" dev "$BRIDGE"
-        echo "==> DMZ bridge $BRIDGE : STP off, IP ${cidrhost(var.dmz_cidr, -2)}"
+        ip addr add "${cidrhost(var.dmz_cidr, -1 - var.instance_id)}/${split("/", var.dmz_cidr)[1]}" dev "$BRIDGE"
+        echo "==> DMZ bridge $BRIDGE : STP off, IP ${cidrhost(var.dmz_cidr, -1 - var.instance_id)}"
       fi
     EOT
   }

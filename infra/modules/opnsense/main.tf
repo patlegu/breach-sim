@@ -200,10 +200,11 @@ resource "libvirt_domain" "opnsense" {
   autostart = true
 }
 
-# ── Push config.xml via SSH (WAN) ────────────────────────────────────────────
-# Pousse config.xml via l'IP WAN (DHCP, réseau NAT libvirt accessible depuis
-# l'hôte). La règle WAN SSH est baked dans config.xml (blockpriv=0).
-# Avec golden image : aucune intervention manuelle requise.
+# ── Push config.xml via SSH (DMZ) ────────────────────────────────────────────
+# Pousse config.xml via l'IP DMZ d'OPNsense (192.168.1.1 par défaut).
+# Le bridge DMZ de chaque instance a une IP hôte unique (dmz_host_ip) —
+# on bind le SSH sur cette IP pour forcer le routage via le bon bridge.
+# Avec golden image : SSH disponible immédiatement sans intervention manuelle.
 # Sans golden image : bootstrap console requis (voir commentaire en tête).
 
 resource "terraform_data" "opnsense_config_push" {
@@ -213,58 +214,45 @@ resource "terraform_data" "opnsense_config_push" {
     command = <<-EOT
       set -euo pipefail
       CFG="${local_sensitive_file.opnsense_config.filename}"
-      SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=5"
-      WAN_NET="breach-${var.instance_id}-wan"
+      BIND_IP="${var.dmz_host_ip}"
+      OPNSENSE_IP="${local.dmz_ip}"
+      SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=5 -b $BIND_IP"
 
-      # 1. Attendre l'IP WAN via DHCP libvirt
-      echo "==> Attente IP WAN OPNsense (réseau $WAN_NET)..."
-      OPNSENSE_IP=""
+      # 1. Attendre SSH sur la DMZ (bind sur l'IP bridge de cette instance)
+      echo "==> Attente SSH OPNsense DMZ ($OPNSENSE_IP via $BIND_IP)..."
       for i in $(seq 1 60); do
-        OPNSENSE_IP=$(virsh -c ${var.libvirt_uri} net-dhcp-leases "$WAN_NET" 2>/dev/null \
-          | awk '/52:54/ {gsub(/\/[0-9]+/,"",$5); print $5; exit}')
-        if [ -n "$OPNSENSE_IP" ]; then
-          echo "==> IP WAN : $OPNSENSE_IP (tentative $i)"
+        if ssh $SSH_OPTS root@$OPNSENSE_IP true 2>/dev/null; then
+          echo "==> SSH disponible (tentative $i)"
           break
         fi
         echo "  tentative $i/60, retry dans 10s..."
         sleep 10
       done
 
-      if [ -z "$OPNSENSE_IP" ]; then
-        echo "ERREUR : impossible d'obtenir l'IP WAN d'OPNsense"
-        exit 1
-      fi
-
-      # 2. Attendre SSH sur WAN
-      echo "==> Attente SSH OPNsense ($OPNSENSE_IP)..."
-      for i in $(seq 1 30); do
-        if ssh $SSH_OPTS root@$OPNSENSE_IP true 2>/dev/null; then
-          echo "==> SSH disponible (tentative $i)"
-          break
-        fi
-        echo "  tentative $i/30, retry dans 10s..."
-        sleep 10
-      done
-
       if ! ssh $SSH_OPTS root@$OPNSENSE_IP true 2>/dev/null; then
-        echo "ERREUR : OPNsense inaccessible via SSH WAN ($OPNSENSE_IP)"
+        echo "ERREUR : OPNsense DMZ inaccessible ($OPNSENSE_IP)"
+        echo "Sans golden image : bootstrap console requis :"
+        echo "  virsh console → option 8 → shell"
+        echo "  ssh-keygen -A"
+        echo "  /usr/local/sbin/sshd -f /usr/local/etc/ssh/sshd_config"
+        echo "  echo 'CLÉPUB' >> /root/.ssh/authorized_keys"
         exit 1
       fi
 
-      # 3. Push config.xml
+      # 2. Push config.xml
       echo "==> Push config.xml vers $OPNSENSE_IP..."
       scp $SSH_OPTS "$CFG" root@$OPNSENSE_IP:/conf/config.xml
 
-      # 4. Reboot pour appliquer la configuration complète
+      # 3. Reboot
       echo "==> Reboot OPNsense..."
       ssh $SSH_OPTS root@$OPNSENSE_IP "reboot" || true
 
-      # 5. Attendre que OPNsense redémarre et soit joignable sur DMZ
-      echo "==> Attente redémarrage OPNsense (DMZ ${local.dmz_ip})..."
+      # 4. Attendre que OPNsense redémarre
+      echo "==> Attente redémarrage OPNsense (DMZ $OPNSENSE_IP)..."
       sleep 30
       for i in $(seq 1 20); do
-        if ssh $SSH_OPTS root@${local.dmz_ip} true 2>/dev/null; then
-          echo "==> OPNsense opérationnel sur DMZ (tentative $i)"
+        if ssh $SSH_OPTS root@$OPNSENSE_IP true 2>/dev/null; then
+          echo "==> OPNsense opérationnel (tentative $i)"
           break
         fi
         echo "  tentative $i/20, retry dans 15s..."

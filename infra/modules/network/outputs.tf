@@ -27,6 +27,11 @@ output "dmz_gateway" {
   value       = cidrhost(var.dmz_cidr, 1)
 }
 
+output "dmz_host_ip" {
+  description = "IP hôte du bridge DMZ (unique par instance, pour bind SSH)"
+  value       = cidrhost(var.dmz_cidr, -1 - var.instance_id)
+}
+
 output "lan_gateway" {
   description = "IP gateway LAN (OPNsense vtnet2)"
   value       = cidrhost(var.lan_cidr, 1)
