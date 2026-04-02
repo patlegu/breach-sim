@@ -25,6 +25,10 @@ write_files:
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -y
       apt-get install -y git curl
+      # exim4 occupe le port 25 et bloque le container mailoney de T-Pot
+      systemctl stop exim4 || true
+      systemctl disable exim4 || true
+      apt-get remove -y exim4 exim4-base exim4-config exim4-daemon-light || true
       rm -rf /opt/tpotce
       git clone https://github.com/telekom-security/tpotce /opt/tpotce
       chown -R breach:breach /opt/tpotce

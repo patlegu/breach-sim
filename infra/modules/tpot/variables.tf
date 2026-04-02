@@ -51,9 +51,9 @@ variable "vcpu" {
 }
 
 variable "memory_mb" {
-  description = "RAM en MiB — T-Pot recommande 8192 minimum"
+  description = "RAM en MiB — T-Pot hive recommande 16384 minimum"
   type        = number
-  default     = 8192
+  default     = 16384
 }
 
 variable "disk_size" {
