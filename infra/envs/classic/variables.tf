@@ -16,12 +16,6 @@ variable "libvirt_pool" {
 
 # ── Images ────────────────────────────────────────────────────────────────────
 
-variable "opnsense_image_url" {
-  description = "URL image OPNsense nano amd64 (.img.bz2) — NanoBSD persistant pour VM"
-  type        = string
-  default     = "https://mirror.ams1.nl.leaseweb.net/opnsense/releases/25.1/OPNsense-25.1-nano-amd64.img.bz2"
-}
-
 variable "debian_image_url" {
   description = "URL image Debian cloud (qcow2)"
   type        = string

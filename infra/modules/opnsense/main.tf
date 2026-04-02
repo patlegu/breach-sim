@@ -12,9 +12,11 @@
 #   après le premier boot : config.xml est rendu localement puis poussé
 #   via SCP sur /conf/config.xml, suivi d'un reboot.
 #
-#   Premier déploiement : activer SSH via la console OPNsense (option 8
-#   du menu → shell → service sshd onestart), ajouter la clé SSH dans
-#   /root/.ssh/authorized_keys, puis relancer `tofu apply`.
+#   Le golden image (opnsense-golden.qcow2) démarre avec SSH activé et la
+#   clé SSH autorisée → aucune intervention console requise.
+#   Créer le golden depuis l'instance de référence (une seule fois) :
+#     virsh vol-download --pool images breach-1-opnsense.qcow2 /tmp/cow.qcow2
+#     qemu-img convert -c -O qcow2 /tmp/cow.qcow2 <cache_dir>/opnsense-golden.qcow2
 
 terraform {
   required_providers {
@@ -65,24 +67,22 @@ locals {
 # On crée ensuite un volume par instance (copy-on-write depuis la base).
 
 resource "terraform_data" "opnsense_base" {
-  input = var.opnsense_image_url
+  input = "${var.image_cache_dir}/opnsense-golden.qcow2"
 
   provisioner "local-exec" {
     command = <<-EOT
       set -euo pipefail
-      CACHE="${var.image_cache_dir}"
-      mkdir -p "$CACHE"
-      BASE_IMG="$CACHE/opnsense-base.qcow2"
-      if [ ! -f "$BASE_IMG" ]; then
-        echo "==> Téléchargement image OPNsense..."
-        curl -fSL "${var.opnsense_image_url}" -o "$CACHE/opnsense.img.bz2"
-        echo "==> Décompression..."
-        bunzip2 "$CACHE/opnsense.img.bz2"
-        echo "==> Conversion en qcow2..."
-        qemu-img convert -f raw -O qcow2 "$CACHE/opnsense.img" "$BASE_IMG"
-        rm -f "$CACHE/opnsense.img"
-        echo "==> Image de base prête : $BASE_IMG"
+      GOLDEN="${var.image_cache_dir}/opnsense-golden.qcow2"
+      if [ ! -f "$GOLDEN" ]; then
+        echo "ERREUR : golden image OPNsense introuvable : $GOLDEN"
+        echo ""
+        echo "Créer depuis l'instance de référence :"
+        echo "  virsh vol-download --pool ${var.libvirt_pool} breach-1-opnsense.qcow2 /tmp/opnsense-cow.qcow2"
+        echo "  qemu-img convert -c -O qcow2 /tmp/opnsense-cow.qcow2 $GOLDEN"
+        echo "  rm /tmp/opnsense-cow.qcow2"
+        exit 1
       fi
+      echo "==> Golden image OPNsense : $GOLDEN ($(qemu-img info --output json "$GOLDEN" | grep '"virtual-size"' | grep -oP '\d+' | head -1 | awk '{printf "%.1f GiB", $1/1073741824}'))"
     EOT
   }
 }
@@ -94,11 +94,14 @@ resource "terraform_data" "opnsense_base_volume" {
     command = <<-EOT
       set -euo pipefail
       VIRSH="virsh -c ${var.libvirt_uri}"
-      BASE="opnsense-base.qcow2"
+      BASE="opnsense-golden.qcow2"
       if ! $VIRSH vol-info --pool ${var.libvirt_pool} "$BASE" >/dev/null 2>&1; then
-        echo "==> Upload image de base dans le pool libvirt..."
-        $VIRSH vol-create-as ${var.libvirt_pool} "$BASE" 10M --format qcow2
-        $VIRSH vol-upload --pool ${var.libvirt_pool} "$BASE" "${var.image_cache_dir}/opnsense-base.qcow2"
+        echo "==> Upload golden image dans le pool libvirt..."
+        $VIRSH vol-create-as ${var.libvirt_pool} "$BASE" 10G --format qcow2
+        $VIRSH vol-upload --pool ${var.libvirt_pool} "$BASE" "${var.image_cache_dir}/opnsense-golden.qcow2"
+        echo "==> Golden image uploadée."
+      else
+        echo "==> Golden image déjà présente dans le pool."
       fi
     EOT
   }
@@ -108,7 +111,7 @@ resource "terraform_data" "opnsense_base_volume" {
     command = <<-EOT
       URI=$(echo "${self.input}" | cut -d'|' -f1)
       POOL=$(echo "${self.input}" | cut -d'|' -f2)
-      virsh -c "$URI" vol-delete --pool "$POOL" opnsense-base.qcow2 2>/dev/null || true
+      virsh -c "$URI" vol-delete --pool "$POOL" opnsense-golden.qcow2 2>/dev/null || true
     EOT
   }
 
@@ -120,7 +123,7 @@ resource "terraform_data" "opnsense_base_volume" {
 resource "libvirt_volume" "opnsense" {
   name             = "${local.name}.qcow2"
   pool             = var.libvirt_pool
-  base_volume_name = "opnsense-base.qcow2"
+  base_volume_name = "opnsense-golden.qcow2"
   base_volume_pool = var.libvirt_pool
   format           = "qcow2"
   size             = var.disk_size

@@ -26,9 +26,7 @@ write_files:
       apt-get install -y git curl
       git clone https://github.com/telekom-security/tpotce /opt/tpotce
       cd /opt/tpotce
-      export myCONF_WEB_USER="${tpot_web_user}"
-      export myCONF_WEB_PW="${tpot_web_pw}"
-      ./install.sh --type=auto
+      ./install.sh -s -t h -u "${tpot_web_user}" -p "${tpot_web_pw}"
       touch /opt/tpot-installed
       echo "==> Installation terminée $(date) — reboot..."
 
