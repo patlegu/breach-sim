@@ -30,7 +30,7 @@
       <groupname>admins</groupname>
       <password>${root_hash}</password>
       <uid>0</uid>
-      <shell>/bin/sh</shell>
+      <shell>/usr/local/sbin/opnsense-shell</shell>
       <authorizedkeys>${base64encode(ssh_key)}</authorizedkeys>
     </user>
 
