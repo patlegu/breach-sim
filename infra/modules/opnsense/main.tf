@@ -242,7 +242,7 @@ resource "terraform_data" "opnsense_config_push" {
       CFG="${local_sensitive_file.opnsense_config.filename}"
       BIND_IP="${var.dmz_host_ip}"
       OPNSENSE_IP="${local.dmz_ip}"
-      SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=5 -b $BIND_IP"
+      SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=5 -o BindAddress=$BIND_IP"
 
       # 1. Attendre SSH sur la DMZ (bind sur l'IP bridge de cette instance)
       echo "==> Attente SSH OPNsense DMZ ($OPNSENSE_IP via $BIND_IP)..."
