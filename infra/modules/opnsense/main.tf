@@ -9,10 +9,10 @@
 # Bootstrap :
 #   OPNsense ne supporte pas cloud-init. La config est injectée via SSH
 #   après le premier boot : config.xml est rendu localement puis poussé
-#   via SCP sur /conf/config.xml, suivi d'un rechargement des services.
+#   via SCP sur /conf/config.xml, suivi d'un reboot.
 #
-#   Premier déploiement : activer SSH manuellement via la console OPNsense
-#   (menu option 14 ou /usr/sbin/sshd), ajouter la clé SSH de korrig dans
+#   Premier déploiement : activer SSH via la console OPNsense (option 8
+#   du menu → shell → service sshd onestart), ajouter la clé SSH dans
 #   /root/.ssh/authorized_keys, puis relancer `tofu apply`.
 
 terraform {
@@ -242,30 +242,10 @@ resource "terraform_data" "opnsense_config_push" {
       echo "==> Push config.xml vers $WAN_IP..."
       scp $SSH_OPTS "$CFG" root@$WAN_IP:/conf/config.xml
 
-      # 4. Activer serial console pour virsh, puis reboot pour appliquer
-      #    les nouveaux assignments d'interfaces
-      echo "==> Activation console série + reboot..."
-      ssh $SSH_OPTS root@$WAN_IP \
-        "printf 'boot_multicons=\"YES\"\nboot_serial=\"YES\"\ncomconsole_speed=\"115200\"\nconsole=\"comconsole,vidconsole\"\n' >> /boot/loader.conf.local
-         # Script rc.d pour fixer ttyu0 à chaque boot (OPNsense réinitialise /etc/ttys)
-         cat > /usr/local/etc/rc.d/serial_console << 'RCEOF'
-#!/bin/sh
-# PROVIDE: serial_console
-# REQUIRE: NETWORKING DAEMON LOGIN opnsense-beep
-# KEYWORD: nojail shutdown
-. /etc/rc.subr
-name=serial_console
-start_cmd=serial_console_start
-serial_console_start() {
-  sed -i '' 's/ttyu0.*off secure/ttyu0   \"\/usr\/libexec\/getty al.3wire.115200\"    vt100   onifconsole secure/' /etc/ttys
-  kill -HUP 1
-}
-load_rc_config \$name
-run_rc_command \"\$1\"
-RCEOF
-         chmod 555 /usr/local/etc/rc.d/serial_console
-         /usr/local/etc/rc.d/serial_console start
-         reboot" || true
+      # 4. Reboot pour appliquer les nouveaux assignments d'interfaces
+      #    (l'image serial a la console série active par défaut — pas de config nécessaire)
+      echo "==> Reboot pour appliquer la configuration..."
+      ssh $SSH_OPTS root@$WAN_IP "reboot" || true
 
       # 5. Attendre que OPNsense redémarre et soit joignable sur DMZ
       echo "==> Attente redémarrage OPNsense (DMZ ${local.dmz_ip})..."
