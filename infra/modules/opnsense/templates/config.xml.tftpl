@@ -122,10 +122,26 @@
     </lan>
   </dhcpd>
 
-  <!-- NAT sortant (masquerade LAN → WAN) -->
+  <!-- NAT sortant (masquerade DMZ + LAN → WAN) -->
   <nat>
     <outbound>
-      <mode>automatic</mode>
+      <mode>hybrid</mode>
+      <!-- DMZ → WAN -->
+      <rule>
+        <interface>wan</interface>
+        <source><network>${dmz_ip}/${dmz_prefix}</network></source>
+        <destination><any/></destination>
+        <target>interface-address</target>
+        <descr>DMZ to WAN masquerade</descr>
+      </rule>
+      <!-- LAN → WAN -->
+      <rule>
+        <interface>wan</interface>
+        <source><network>${lan_ip}/${lan_prefix}</network></source>
+        <destination><any/></destination>
+        <target>interface-address</target>
+        <descr>LAN to WAN masquerade</descr>
+      </rule>
     </outbound>
   </nat>
 
