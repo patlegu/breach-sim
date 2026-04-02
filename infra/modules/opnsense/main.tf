@@ -46,10 +46,12 @@ locals {
     ssh_key       = var.ssh_public_key
     api_key       = var.api_key
     api_secret    = var.api_secret
+    dmz_cidr      = var.dmz_cidr
     dmz_ip        = local.dmz_ip
     dmz_prefix    = local.dmz_prefix
     dmz_dhcp_from = local.dmz_dhcp_from
     dmz_dhcp_to   = local.dmz_dhcp_to
+    lan_cidr      = var.lan_cidr
     lan_ip        = local.lan_ip
     lan_prefix    = local.lan_prefix
     lan_dhcp_from = local.lan_dhcp_from

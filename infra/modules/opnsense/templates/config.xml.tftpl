@@ -133,66 +133,66 @@
   <nat>
     <outbound>
       <mode>hybrid</mode>
-      <!-- DMZ → WAN -->
       <rule>
         <interface>wan</interface>
-        <source><network>${dmz_ip}/${dmz_prefix}</network></source>
-        <destination><any/></destination>
-        <target>interface-address</target>
+        <source><network>${dmz_cidr}</network></source>
+        <destination><any></any></destination>
+        <target></target>
         <descr>DMZ to WAN masquerade</descr>
+        <enabled>1</enabled>
       </rule>
-      <!-- LAN → WAN -->
       <rule>
         <interface>wan</interface>
-        <source><network>${lan_ip}/${lan_prefix}</network></source>
-        <destination><any/></destination>
-        <target>interface-address</target>
+        <source><network>${lan_cidr}</network></source>
+        <destination><any></any></destination>
+        <target></target>
         <descr>LAN to WAN masquerade</descr>
+        <enabled>1</enabled>
       </rule>
     </outbound>
   </nat>
 
   <!-- Règles firewall inter-zones -->
   <filter>
-    <!-- DMZ : tout sortant autorisé (internet + LAN bloqué par défaut) -->
     <rule>
       <type>pass</type>
       <interface>opt1</interface>
       <ipprotocol>inet</ipprotocol>
       <protocol>any</protocol>
       <source><network>opt1</network></source>
-      <destination><any/></destination>
+      <destination><any></any></destination>
       <descr>DMZ to internet</descr>
+      <enabled>1</enabled>
     </rule>
-    <!-- LAN : tout sortant autorisé -->
     <rule>
       <type>pass</type>
       <interface>lan</interface>
       <ipprotocol>inet</ipprotocol>
       <protocol>any</protocol>
       <source><network>lan</network></source>
-      <destination><any/></destination>
+      <destination><any></any></destination>
       <descr>LAN to any</descr>
+      <enabled>1</enabled>
     </rule>
-    <!-- WAN : HTTPS pour accès API OPNsense depuis korrig -->
     <rule>
       <type>pass</type>
       <interface>wan</interface>
       <ipprotocol>inet</ipprotocol>
       <protocol>tcp</protocol>
-      <source><any/></source>
+      <source><any></any></source>
       <destination><network>wanip</network><port>443</port></destination>
       <descr>Allow HTTPS API from WAN</descr>
+      <enabled>1</enabled>
     </rule>
-    <!-- WAN : SSH OPNsense depuis korrig (accès management) -->
     <rule>
       <type>pass</type>
       <interface>wan</interface>
       <ipprotocol>inet</ipprotocol>
       <protocol>tcp</protocol>
-      <source><any/></source>
+      <source><any></any></source>
       <destination><network>wanip</network><port>22</port></destination>
       <descr>Allow SSH from WAN</descr>
+      <enabled>1</enabled>
     </rule>
   </filter>
 
