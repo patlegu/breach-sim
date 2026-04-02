@@ -107,7 +107,7 @@ resource "terraform_data" "opnsense_base" {
 }
 
 resource "terraform_data" "opnsense_base_volume" {
-  input = "${var.libvirt_uri}|${var.libvirt_pool}|${var.image_cache_dir}"
+  input = "${var.libvirt_uri}|${var.libvirt_pool}|${var.image_cache_dir}|${local.base_image}"
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -139,12 +139,7 @@ resource "terraform_data" "opnsense_base_volume" {
     command = <<-EOT
       URI=$(echo "${self.input}" | cut -d'|' -f1)
       POOL=$(echo "${self.input}" | cut -d'|' -f2)
-      CACHE=$(echo "${self.input}" | cut -d'|' -f3)
-      if [ -f "$CACHE/opnsense-golden.qcow2" ]; then
-        BASE="opnsense-golden.qcow2"
-      else
-        BASE="opnsense-base.qcow2"
-      fi
+      BASE=$(echo "${self.input}" | cut -d'|' -f4)
       virsh -c "$URI" vol-delete --pool "$POOL" "$BASE" 2>/dev/null || true
     EOT
   }
