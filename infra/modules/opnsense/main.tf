@@ -200,12 +200,11 @@ resource "libvirt_domain" "opnsense" {
   autostart = true
 }
 
-# ── Push config.xml via SSH ───────────────────────────────────────────────────
-# Pousse config.xml sur OPNsense et recharge les services dès que le contenu
-# change. Prérequis bootstrap (premier déploiement uniquement) :
-#   1. Activer SSH sur OPNsense via la console (option 14 du menu)
-#   2. Ajouter la clé SSH de korrig dans /root/.ssh/authorized_keys
-#   3. Relancer `tofu apply`
+# ── Push config.xml via SSH (WAN) ────────────────────────────────────────────
+# Pousse config.xml via l'IP WAN (DHCP, réseau NAT libvirt accessible depuis
+# l'hôte). La règle WAN SSH est baked dans config.xml (blockpriv=0).
+# Avec golden image : aucune intervention manuelle requise.
+# Sans golden image : bootstrap console requis (voir commentaire en tête).
 
 resource "terraform_data" "opnsense_config_push" {
   triggers_replace = sha256(local.config_xml)
@@ -215,45 +214,52 @@ resource "terraform_data" "opnsense_config_push" {
       set -euo pipefail
       CFG="${local_sensitive_file.opnsense_config.filename}"
       SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=5"
+      WAN_NET="breach-${var.instance_id}-wan"
 
-      # OPNsense serial image démarre avec vtnet0=LAN=192.168.1.1 par défaut.
-      # Notre bridge DMZ (libvirt mode=none) est sur le même réseau → accessible
-      # directement depuis korrig sans pfctl -d ni chasse à l'IP WAN.
-      # Bootstrap (premier déploiement uniquement) :
-      #   1. virsh console → menu 8 (Shell)
-      #   2. ssh-keygen -A && /usr/local/sbin/sshd -f /usr/local/etc/ssh/sshd_config
-      #   3. echo "CLÉPUB" >> /root/.ssh/authorized_keys
-      OPNSENSE_IP="192.168.1.1"
-
-      # 1. Attendre que SSH soit disponible sur le LAN défaut OPNsense
-      echo "==> Attente SSH OPNsense ($OPNSENSE_IP)..."
+      # 1. Attendre l'IP WAN via DHCP libvirt
+      echo "==> Attente IP WAN OPNsense (réseau $WAN_NET)..."
+      OPNSENSE_IP=""
       for i in $(seq 1 60); do
-        if ssh $SSH_OPTS root@$OPNSENSE_IP true 2>/dev/null; then
-          echo "==> SSH disponible (tentative $i)"
+        OPNSENSE_IP=$(virsh -c ${var.libvirt_uri} net-dhcp-leases "$WAN_NET" 2>/dev/null \
+          | awk '/52:54/ {gsub(/\/[0-9]+/,"",$5); print $5; exit}')
+        if [ -n "$OPNSENSE_IP" ]; then
+          echo "==> IP WAN : $OPNSENSE_IP (tentative $i)"
           break
         fi
         echo "  tentative $i/60, retry dans 10s..."
         sleep 10
       done
 
-      if ! ssh $SSH_OPTS root@$OPNSENSE_IP true 2>/dev/null; then
-        echo "ERREUR : OPNsense inaccessible via SSH ($OPNSENSE_IP)"
-        echo "Bootstrap : activer SSH via console (option 8 du menu)"
-        echo "  ssh-keygen -A"
-        echo "  /usr/local/sbin/sshd -f /usr/local/etc/ssh/sshd_config"
-        echo "  echo 'CLÉPUB' >> /root/.ssh/authorized_keys"
+      if [ -z "$OPNSENSE_IP" ]; then
+        echo "ERREUR : impossible d'obtenir l'IP WAN d'OPNsense"
         exit 1
       fi
 
-      # 2. Push config.xml
+      # 2. Attendre SSH sur WAN
+      echo "==> Attente SSH OPNsense ($OPNSENSE_IP)..."
+      for i in $(seq 1 30); do
+        if ssh $SSH_OPTS root@$OPNSENSE_IP true 2>/dev/null; then
+          echo "==> SSH disponible (tentative $i)"
+          break
+        fi
+        echo "  tentative $i/30, retry dans 10s..."
+        sleep 10
+      done
+
+      if ! ssh $SSH_OPTS root@$OPNSENSE_IP true 2>/dev/null; then
+        echo "ERREUR : OPNsense inaccessible via SSH WAN ($OPNSENSE_IP)"
+        exit 1
+      fi
+
+      # 3. Push config.xml
       echo "==> Push config.xml vers $OPNSENSE_IP..."
       scp $SSH_OPTS "$CFG" root@$OPNSENSE_IP:/conf/config.xml
 
-      # 3. Reboot pour appliquer la configuration complète
-      echo "==> Reboot pour appliquer la configuration..."
+      # 4. Reboot pour appliquer la configuration complète
+      echo "==> Reboot OPNsense..."
       ssh $SSH_OPTS root@$OPNSENSE_IP "reboot" || true
 
-      # 4. Attendre que OPNsense redémarre et soit joignable sur DMZ
+      # 5. Attendre que OPNsense redémarre et soit joignable sur DMZ
       echo "==> Attente redémarrage OPNsense (DMZ ${local.dmz_ip})..."
       sleep 30
       for i in $(seq 1 20); do
