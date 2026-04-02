@@ -246,7 +246,26 @@ resource "terraform_data" "opnsense_config_push" {
       #    les nouveaux assignments d'interfaces
       echo "==> Activation console série + reboot..."
       ssh $SSH_OPTS root@$WAN_IP \
-        "printf 'boot_multicons=\"YES\"\nboot_serial=\"YES\"\ncomconsole_speed=\"115200\"\nconsole=\"comconsole,vidconsole\"\n' >> /boot/loader.conf.local; sed -i '' 's/ttyu0.*off secure/ttyu0   \"\/usr\/libexec\/getty al.3wire.115200\"    vt100   onifconsole secure/' /etc/ttys; reboot" || true
+        "printf 'boot_multicons=\"YES\"\nboot_serial=\"YES\"\ncomconsole_speed=\"115200\"\nconsole=\"comconsole,vidconsole\"\n' >> /boot/loader.conf.local
+         # Script rc.d pour fixer ttyu0 à chaque boot (OPNsense réinitialise /etc/ttys)
+         cat > /usr/local/etc/rc.d/serial_console << 'RCEOF'
+#!/bin/sh
+# PROVIDE: serial_console
+# REQUIRE: LOGIN
+# KEYWORD: nojail
+. /etc/rc.subr
+name=serial_console
+start_cmd=serial_console_start
+serial_console_start() {
+  sed -i '' 's/ttyu0.*off secure/ttyu0   \"\/usr\/libexec\/getty al.3wire.115200\"    vt100   onifconsole secure/' /etc/ttys
+  kill -HUP 1
+}
+load_rc_config \$name
+run_rc_command \"\$1\"
+RCEOF
+         chmod 555 /usr/local/etc/rc.d/serial_console
+         /usr/local/etc/rc.d/serial_console start
+         reboot" || true
 
       # 5. Attendre que OPNsense redémarre et soit joignable sur DMZ
       echo "==> Attente redémarrage OPNsense (DMZ ${local.dmz_ip})..."
