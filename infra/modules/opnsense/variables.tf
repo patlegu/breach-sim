@@ -39,10 +39,11 @@ variable "lan_cidr" {
 }
 
 # ── Image ─────────────────────────────────────────────────────────────────────
-# Golden image : opnsense-golden.qcow2 dans image_cache_dir.
-# Créée une fois depuis une instance OPNsense bootstrapée :
-#   virsh vol-download --pool images breach-1-opnsense.qcow2 /tmp/cow.qcow2
-#   qemu-img convert -c -O qcow2 /tmp/cow.qcow2 <image_cache_dir>/opnsense-golden.qcow2
+
+variable "opnsense_image_url" {
+  description = "URL de l'image OPNsense nano (bz2)"
+  type        = string
+}
 
 variable "image_cache_dir" {
   description = "Répertoire local pour cacher les images téléchargées"

@@ -63,6 +63,7 @@ module "opnsense" {
   lan_network_id     = module.network.lan_network_id
   dmz_cidr           = module.network.dmz_cidr
   lan_cidr           = module.network.lan_cidr
+  opnsense_image_url = var.opnsense_image_url
   image_cache_dir    = var.image_cache_dir
   root_password_hash = var.opnsense_root_hash
   ssh_public_key     = var.ssh_public_key
