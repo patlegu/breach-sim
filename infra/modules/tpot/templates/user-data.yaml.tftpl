@@ -25,6 +25,7 @@ write_files:
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -y
       apt-get install -y git curl
+      rm -rf /opt/tpotce
       git clone https://github.com/telekom-security/tpotce /opt/tpotce
       chown -R breach:breach /opt/tpotce
       echo "==> Lancement install.sh en tant que breach..."
