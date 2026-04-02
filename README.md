@@ -43,13 +43,12 @@ breach-sim/
 ├── infra/                   # KVM/libvirt labs (OpenTofu)
 │   ├── Makefile
 │   ├── envs/
-│   │   ├── classic/         # OPNsense + srv-web + srv-db + infected VM
-│   │   └── k8s/             # OPNsense + k3s cluster (1 CP + 2 workers)
+│   │   └── classic/         # OPNsense + DMZ (T-Pot + srv-web) + LAN (srv-db + srv-app)
 │   └── modules/
-│       ├── network/         # libvirt networks (WAN NAT + LAN isolated)
-│       ├── opnsense/        # OPNsense VM (FreeBSD, config.xml bootstrap)
-│       ├── classic-lab/     # 3 Debian VMs (cloud-init)
-│       └── k8s-lab/         # k3s + Tetragon + attack manifests
+│       ├── network/         # libvirt networks (WAN NAT + DMZ isolated + LAN isolated)
+│       ├── opnsense/        # OPNsense VM (config.xml push via SSH DMZ)
+│       ├── classic-lab/     # 3 Debian VMs cloud-init (srv-web, srv-db, srv-app)
+│       └── tpot/            # T-Pot CE honeypot VM (DMZ .50)
 ├── deploy/
 │   ├── breach-sim.service   # systemd unit
 │   ├── Caddyfile.snippet    # Caddy reverse proxy
@@ -123,18 +122,26 @@ Live mode connects the AI agents to a real isolated network running on KVM/libvi
 ```
 Internet (NAT)
      │
-  OPNsense (vtnet0=WAN DHCP, vtnet1=LAN 192.168.11.1/24)
-     │  192.168.11.0/24  (DHCP 10–99)
-     ├── srv-web   192.168.11.10+  (Nginx)   ─┐
-     ├── srv-db    192.168.11.10+  (PostgreSQL) ├ DHCP OPNsense
-     └── infected  192.168.11.10+  (attack)   ─┘
+  OPNsense (vtnet1=WAN DHCP, vtnet0=DMZ 192.168.1.1, vtnet2=LAN 192.168.21.1)
+     │
+     ├── DMZ 192.168.1.0/24 (isolated)
+     │    ├── T-Pot CE  192.168.1.50   (honeypot — Cowrie SSH, Dionaea, Kibana)
+     │    └── srv-web   192.168.1.10   (Nginx)
+     │
+     └── LAN 192.168.21.0/24 (isolated)
+          ├── srv-db    192.168.21.10  (PostgreSQL)
+          └── srv-app   192.168.21.20  (app server)
 
-korrig (hyperviseur KVM) : 192.168.11.254 sur le bridge LAN (accès management)
+WAN : 10.0.<INSTANCE>.0/24 (NAT libvirt)
+LAN : 192.168.<20+INSTANCE>.0/24 — multi-instance sans conflit de routes
 ```
 
-Multiple isolated instances run in parallel (INSTANCE=1 → `192.168.11.x`, INSTANCE=2 → `192.168.12.x`).
+Management SSH depuis l'hyperviseur :
+- OPNsense DMZ : `ssh -o BindAddress=192.168.1.254 root@192.168.1.1`
+- T-Pot : `ssh -b 192.168.1.254 breach@192.168.1.50` (port 64295 après installation)
+- VMs LAN : via OPNsense en proxy jump
 
-> **Bootstrap OPNsense (premier déploiement uniquement)** : après `tofu apply`, activer SSH via la console OPNsense (option 14 du menu), ajouter la clé publique de l'hyperviseur dans `/root/.ssh/authorized_keys`, puis relancer `tofu apply`. Les déploiements suivants poussent `config.xml` automatiquement via SSH.
+> **Bootstrap OPNsense** : avec la golden image (`opnsense-golden.qcow2` dans le cache), SSH est disponible dès le premier boot — `tofu apply` pousse `config.xml` automatiquement. Sans golden image, bootstrap console requis une seule fois (voir `infra/modules/opnsense/main.tf`).
 
 ### Deploy a lab
 
