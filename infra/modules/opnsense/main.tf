@@ -199,7 +199,7 @@ resource "terraform_data" "opnsense_config_push" {
     command = <<-EOT
       set -euo pipefail
       CFG="${local_sensitive_file.opnsense_config.filename}"
-      SSH_OPTS="-o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5"
+      SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o ConnectTimeout=5"
 
       # OPNsense serial image démarre avec vtnet0=LAN=192.168.1.1 par défaut.
       # Notre bridge DMZ (libvirt mode=none) est sur le même réseau → accessible
