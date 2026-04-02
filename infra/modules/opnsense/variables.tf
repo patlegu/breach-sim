@@ -56,6 +56,12 @@ variable "image_cache_dir" {
   default     = "/var/lib/libvirt/images/.cache"
 }
 
+variable "base_image_override" {
+  description = "Force le nom de l'image de base (ex: opnsense-base.qcow2). Vide = auto-détection golden > base."
+  type        = string
+  default     = ""
+}
+
 # ── VM ────────────────────────────────────────────────────────────────────────
 
 variable "vcpu" {

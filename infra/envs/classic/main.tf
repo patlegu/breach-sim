@@ -55,21 +55,22 @@ module "network" {
 module "opnsense" {
   source = "../../modules/opnsense"
 
-  instance_id        = var.instance_id
-  libvirt_uri        = var.libvirt_uri
-  libvirt_pool       = var.libvirt_pool
-  wan_network_id     = module.network.wan_network_id
-  dmz_network_id     = module.network.dmz_network_id
-  lan_network_id     = module.network.lan_network_id
-  dmz_cidr           = module.network.dmz_cidr
-  dmz_host_ip        = module.network.dmz_host_ip
-  lan_cidr           = module.network.lan_cidr
-  opnsense_image_url = var.opnsense_image_url
-  image_cache_dir    = var.image_cache_dir
-  root_password_hash = var.opnsense_root_hash
-  ssh_public_key     = var.ssh_public_key
-  api_key            = var.opnsense_api_key
-  api_secret         = var.opnsense_api_secret
+  instance_id         = var.instance_id
+  libvirt_uri         = var.libvirt_uri
+  libvirt_pool        = var.libvirt_pool
+  wan_network_id      = module.network.wan_network_id
+  dmz_network_id      = module.network.dmz_network_id
+  lan_network_id      = module.network.lan_network_id
+  dmz_cidr            = module.network.dmz_cidr
+  dmz_host_ip         = module.network.dmz_host_ip
+  lan_cidr            = module.network.lan_cidr
+  opnsense_image_url  = var.opnsense_image_url
+  image_cache_dir     = var.image_cache_dir
+  base_image_override = "opnsense-base.qcow2"
+  root_password_hash  = var.opnsense_root_hash
+  ssh_public_key      = var.ssh_public_key
+  api_key             = var.opnsense_api_key
+  api_secret          = var.opnsense_api_secret
 
   depends_on = [terraform_data.libvirt_pool]
 }

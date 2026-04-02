@@ -41,8 +41,11 @@ terraform {
 
 locals {
   name       = "breach-${var.instance_id}-opnsense"
-  # Utilise la golden image si disponible dans le cache, sinon la base nano
-  base_image = fileexists("${var.image_cache_dir}/opnsense-golden.qcow2") ? "opnsense-golden.qcow2" : "opnsense-base.qcow2"
+  # Si base_image_override est renseigné, on l'utilise tel quel (protège les instances existantes).
+  # Sinon : auto-détection golden > base nano.
+  base_image = var.base_image_override != "" ? var.base_image_override : (
+    fileexists("${var.image_cache_dir}/opnsense-golden.qcow2") ? "opnsense-golden.qcow2" : "opnsense-base.qcow2"
+  )
   dmz_ip     = cidrhost(var.dmz_cidr, 1)
   dmz_prefix = split("/", var.dmz_cidr)[1]
   lan_ip     = cidrhost(var.lan_cidr, 1)
