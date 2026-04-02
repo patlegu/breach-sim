@@ -160,11 +160,11 @@ resource "libvirt_domain" "opnsense" {
     wait_for_lease = false
   }
 
-  # vtnet1 — WAN (OPNsense nano default : vtnet1=WAN → correspond au NAT libvirt)
-  # OPNsense obtient une IP DHCP ici dès le premier boot → accessible pour config push
+  # vtnet1 — WAN (NAT libvirt, DHCP)
+  # Config push via DMZ 192.168.1.1 → wait_for_lease inutile
   network_interface {
     network_id     = var.wan_network_id
-    wait_for_lease = true
+    wait_for_lease = false
   }
 
   # vtnet2 — LAN (srv-db, srv-app)
