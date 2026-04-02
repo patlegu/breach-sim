@@ -41,6 +41,8 @@ terraform {
 
 locals {
   name       = "breach-${var.instance_id}-opnsense"
+  # Utilise la golden image si disponible dans le cache, sinon la base nano
+  base_image = fileexists("${var.image_cache_dir}/opnsense-golden.qcow2") ? "opnsense-golden.qcow2" : "opnsense-base.qcow2"
   dmz_ip     = cidrhost(var.dmz_cidr, 1)
   dmz_prefix = split("/", var.dmz_cidr)[1]
   lan_ip     = cidrhost(var.lan_cidr, 1)
@@ -71,19 +73,24 @@ locals {
 }
 
 # ── Image de base OPNsense (qcow2) ───────────────────────────────────────────
-# L'image nano/vga OPNsense est téléchargée une seule fois dans le pool libvirt.
-# On crée ensuite un volume par instance (copy-on-write depuis la base).
+# Priorité : golden image (opnsense-golden.qcow2) si présente dans le cache.
+# Fallback : téléchargement de l'image nano OPNsense officielle.
+# Golden image = capture d'une instance proprement arrêtée, SSH déjà configuré
+# → supprime le bootstrap console pour toutes les instances suivantes.
 
 resource "terraform_data" "opnsense_base" {
-  input = "${var.image_cache_dir}/opnsense-base.qcow2"
+  input = var.image_cache_dir
 
   provisioner "local-exec" {
     command = <<-EOT
       set -euo pipefail
       CACHE="${var.image_cache_dir}"
       mkdir -p "$CACHE"
+      GOLDEN="$CACHE/opnsense-golden.qcow2"
       BASE_IMG="$CACHE/opnsense-base.qcow2"
-      if [ ! -f "$BASE_IMG" ]; then
+      if [ -f "$GOLDEN" ]; then
+        echo "==> Golden image présente : $GOLDEN"
+      elif [ ! -f "$BASE_IMG" ]; then
         echo "==> Téléchargement image OPNsense..."
         curl -fSL "${var.opnsense_image_url}" -o "$CACHE/opnsense.img.bz2"
         echo "==> Décompression..."
@@ -106,14 +113,23 @@ resource "terraform_data" "opnsense_base_volume" {
     command = <<-EOT
       set -euo pipefail
       VIRSH="virsh -c ${var.libvirt_uri}"
-      BASE="opnsense-base.qcow2"
-      if ! $VIRSH vol-info --pool ${var.libvirt_pool} "$BASE" >/dev/null 2>&1; then
-        echo "==> Upload image de base dans le pool libvirt..."
-        $VIRSH vol-create-as ${var.libvirt_pool} "$BASE" 10G --format qcow2
-        $VIRSH vol-upload --pool ${var.libvirt_pool} "$BASE" "${var.image_cache_dir}/opnsense-base.qcow2"
-        echo "==> Image de base uploadée."
+      CACHE="${var.image_cache_dir}"
+      GOLDEN="$CACHE/opnsense-golden.qcow2"
+      if [ -f "$GOLDEN" ]; then
+        BASE="opnsense-golden.qcow2"
+        LOCAL_IMG="$GOLDEN"
       else
-        echo "==> Image de base déjà présente dans le pool."
+        BASE="opnsense-base.qcow2"
+        LOCAL_IMG="$CACHE/opnsense-base.qcow2"
+      fi
+      if ! $VIRSH vol-info --pool ${var.libvirt_pool} "$BASE" >/dev/null 2>&1; then
+        echo "==> Upload $BASE dans le pool libvirt..."
+        SIZE=$(qemu-img info --output=json "$LOCAL_IMG" | python3 -c "import sys,json; print(json.load(sys.stdin)['virtual-size'])")
+        $VIRSH vol-create-as ${var.libvirt_pool} "$BASE" "$SIZE" --format qcow2
+        $VIRSH vol-upload --pool ${var.libvirt_pool} "$BASE" "$LOCAL_IMG"
+        echo "==> $BASE uploadée."
+      else
+        echo "==> $BASE déjà présente dans le pool."
       fi
     EOT
   }
@@ -123,7 +139,13 @@ resource "terraform_data" "opnsense_base_volume" {
     command = <<-EOT
       URI=$(echo "${self.input}" | cut -d'|' -f1)
       POOL=$(echo "${self.input}" | cut -d'|' -f2)
-      virsh -c "$URI" vol-delete --pool "$POOL" opnsense-base.qcow2 2>/dev/null || true
+      CACHE=$(echo "${self.input}" | cut -d'|' -f3)
+      if [ -f "$CACHE/opnsense-golden.qcow2" ]; then
+        BASE="opnsense-golden.qcow2"
+      else
+        BASE="opnsense-base.qcow2"
+      fi
+      virsh -c "$URI" vol-delete --pool "$POOL" "$BASE" 2>/dev/null || true
     EOT
   }
 
@@ -135,7 +157,7 @@ resource "terraform_data" "opnsense_base_volume" {
 resource "libvirt_volume" "opnsense" {
   name             = "${local.name}.qcow2"
   pool             = var.libvirt_pool
-  base_volume_name = "opnsense-base.qcow2"
+  base_volume_name = local.base_image
   base_volume_pool = var.libvirt_pool
   format           = "qcow2"
   size             = var.disk_size
