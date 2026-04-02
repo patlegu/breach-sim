@@ -86,7 +86,8 @@ resource "terraform_data" "dmz_stp_off" {
         | awk '/Bridge:/{print $2}')
       if [ -n "$BRIDGE" ]; then
         ip link set "$BRIDGE" type bridge stp_state 0
-        ip addr replace "${cidrhost(var.dmz_cidr, -2)}/${split("/", var.dmz_cidr)[1]}" dev "$BRIDGE"
+        ip addr flush dev "$BRIDGE"
+        ip addr add "${cidrhost(var.dmz_cidr, -2)}/${split("/", var.dmz_cidr)[1]}" dev "$BRIDGE"
         echo "==> DMZ bridge $BRIDGE : STP off, IP ${cidrhost(var.dmz_cidr, -2)}"
       fi
     EOT
@@ -106,7 +107,8 @@ resource "terraform_data" "lan_stp_off" {
         | awk '/Bridge:/{print $2}')
       if [ -n "$BRIDGE" ]; then
         ip link set "$BRIDGE" type bridge stp_state 0
-        ip addr replace "${cidrhost(var.lan_cidr, -2)}/${split("/", var.lan_cidr)[1]}" dev "$BRIDGE"
+        ip addr flush dev "$BRIDGE"
+        ip addr add "${cidrhost(var.lan_cidr, -2)}/${split("/", var.lan_cidr)[1]}" dev "$BRIDGE"
         echo "==> LAN bridge $BRIDGE : STP off, IP ${cidrhost(var.lan_cidr, -2)}"
       fi
     EOT
