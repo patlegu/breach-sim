@@ -13,6 +13,7 @@ users:
 
 write_files:
   # Script d'installation T-Pot CE (non-interactif)
+  # Tourne en root (apt-get), mais lance install.sh en tant que breach (requis par T-Pot)
   - path: /opt/tpot-install.sh
     permissions: '0755'
     owner: root:root
@@ -25,8 +26,10 @@ write_files:
       apt-get update -y
       apt-get install -y git curl
       git clone https://github.com/telekom-security/tpotce /opt/tpotce
+      chown -R breach:breach /opt/tpotce
+      echo "==> Lancement install.sh en tant que breach..."
       cd /opt/tpotce
-      ./install.sh -s -t h -u "${tpot_web_user}" -p "${tpot_web_pw}"
+      sudo -u breach ./install.sh -s -t h -u "${tpot_web_user}" -p "${tpot_web_pw}"
       touch /opt/tpot-installed
       echo "==> Installation terminée $(date) — reboot..."
 
