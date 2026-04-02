@@ -40,6 +40,10 @@ resource "libvirt_volume" "tpot" {
   base_volume_pool = var.libvirt_pool
   format           = "qcow2"
   size             = var.disk_size
+
+  lifecycle {
+    replace_triggered_by = [terraform_data.cloudinit_hash]
+  }
 }
 
 # ── Cloud-init ────────────────────────────────────────────────────────────────
