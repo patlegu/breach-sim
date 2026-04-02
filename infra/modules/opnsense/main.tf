@@ -251,8 +251,8 @@ resource "terraform_data" "opnsense_config_push" {
          cat > /usr/local/etc/rc.d/serial_console << 'RCEOF'
 #!/bin/sh
 # PROVIDE: serial_console
-# REQUIRE: LOGIN
-# KEYWORD: nojail
+# REQUIRE: NETWORKING DAEMON LOGIN opnsense-beep
+# KEYWORD: nojail shutdown
 . /etc/rc.subr
 name=serial_console
 start_cmd=serial_console_start
