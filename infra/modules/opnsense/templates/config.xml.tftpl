@@ -351,16 +351,19 @@
   </snmpd>
   <nat>
     <outbound>
-      <mode>hybrid</mode>
-      <!-- No SNAT vers T-Pot : préserver l'IP source réelle de l'attaquant -->
+      <mode>manual</mode>
+      <!--
+        Mode manuel : pas de règle sur opt1 → le trafic forwardé vers T-Pot
+        n'est pas SNATé → T-Pot voit l'IP source réelle de l'attaquant.
+        Seule règle explicite : SNAT sur WAN pour l'internet sortant de T-Pot
+        (mises à jour, threat intel feeds).
+      -->
       <rule>
-        <interface>opt1</interface>
-        <source><any/></source>
-        <destination>
-          <address>${tpot_ip}</address>
-        </destination>
-        <nonat/>
-        <descr>No SNAT T-Pot - preserve attacker src IP</descr>
+        <interface>wan</interface>
+        <source><network>opt1</network></source>
+        <destination><any/></destination>
+        <target><interface>wanip</interface></target>
+        <descr>SNAT T-Pot DMZ sortant vers internet</descr>
       </rule>
     </outbound>
 %{ for port in tpot_ports ~}
