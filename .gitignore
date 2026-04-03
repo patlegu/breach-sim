@@ -9,6 +9,7 @@ onnx/
 app/backend/static/
 app/frontend/node_modules/
 app/frontend/dist/
+app/frontend/.vite/
 
 # infra
 infra/**/.terraform/
