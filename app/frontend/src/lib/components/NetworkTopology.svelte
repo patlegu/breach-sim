@@ -310,7 +310,7 @@
       userPanningEnabled: false,
     })
 
-    cy.fit(cy.nodes(), live ? 6 : 20)
+    cy.fit(cy.nodes(), live ? 2 : 20)
 
     if ('hiddenEdges' in cfg) {
       (cfg as any).hiddenEdges.forEach((id: string) => cy!.$(`#${id}`).style('display', 'none'))
@@ -414,7 +414,7 @@
   {/if}
 
   <!-- Canvas Cytoscape -->
-  <div class={live ? 'flex-[5] min-h-0' : 'flex-1 min-h-0'}>
+  <div class={live ? 'flex-[4] min-h-0' : 'flex-1 min-h-0'}>
     <div bind:this={container} class="w-full h-full rounded-b-lg" style="background: #0c1220;" />
   </div>
 
