@@ -49,11 +49,16 @@ locals {
     fi
     %{~ endfor }
 
-    # ── MASQUERADE sur le bridge WAN ────────────────────────────────────────────
-    if ! iptables -t nat -C POSTROUTING -o "$WAN_BR" -j MASQUERADE 2>/dev/null; then
-      iptables -t nat -A POSTROUTING -o "$WAN_BR" -j MASQUERADE
-      echo "MASQUERADE $WAN_BR ajoutée"
-    fi
+    # Pas de MASQUERADE sur virbr2 : conntrack Linux gère le retour du DNAT
+    # automatiquement. Un MASQUERADE ici écraserait l'IP source réelle de
+    # l'attaquant avant qu'OPNsense la voie → T-Pot verrait 10.0.1.1 au lieu
+    # de l'IP publique.
+
+    # Supprimer l'éventuelle règle MASQUERADE résiduelle
+    while iptables -t nat -C POSTROUTING -o "$WAN_BR" -j MASQUERADE 2>/dev/null; do
+      iptables -t nat -D POSTROUTING -o "$WAN_BR" -j MASQUERADE
+      echo "MASQUERADE $WAN_BR supprimée (préservation IP source attaquant)"
+    done
 
     # ── Supprimer les anciennes règles DNAT direct vers T-Pot DMZ (virbr3) ─────
     %{~ for port in local.ports }
@@ -91,7 +96,7 @@ locals {
       -m state --state NEW,ESTABLISHED -j ACCEPT 2>/dev/null || true
     %{~ endfor }
 
-    iptables -t nat -D POSTROUTING -o "$WAN_BR" -j MASQUERADE 2>/dev/null || true
+    iptables -t nat -D POSTROUTING -o "$WAN_BR" -j MASQUERADE 2>/dev/null || true  # no-op si déjà absente
 
     netfilter-persistent save
     echo "==> korrig-nat : règles iptables supprimées."
