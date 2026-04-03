@@ -13,6 +13,7 @@ Champs ES utilisés (communs à tous les honeypots T-Pot) :
   @timestamp, type, src_ip, dest_port (ou dst_port selon le honeypot)
 """
 
+import ipaddress
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -82,6 +83,10 @@ class TpotCollector:
             src_ip = src.get("src_ip", "?")
             port = src.get("dest_port") or src.get("dst_port") or 0
 
+            # Ignorer les IPs privées (NAT interne, WireGuard, etc.)
+            if _is_private(src_ip):
+                continue
+
             # Mise à jour compteurs
             self._counts[honeypot] = self._counts.get(honeypot, 0) + 1
 
@@ -98,6 +103,14 @@ class TpotCollector:
             self._last_ts = last_src["@timestamp"]
 
         return events
+
+
+def _is_private(ip: str) -> bool:
+    """Retourne True si l'IP est RFC 1918 / loopback / link-local."""
+    try:
+        return ipaddress.ip_address(ip).is_private
+    except ValueError:
+        return False
 
 
 def _now_minus_minutes(n: int) -> str:
