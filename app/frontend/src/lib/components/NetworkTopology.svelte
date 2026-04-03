@@ -470,7 +470,7 @@
 
   <!-- Carte monde (mode live uniquement) -->
   {#if live}
-    <div bind:this={mapEl} class="flex-[1] min-h-0 overflow-hidden relative border-b border-zinc-700">
+    <div bind:this={mapEl} class="flex-none h-28 overflow-hidden relative border-b border-zinc-700">
       <img src={worldMapUrl} alt="world map" class="w-full h-full" style="object-fit: fill; display: block;" />
       <!-- Label -->
       <span class="absolute top-1.5 left-2 text-xs text-zinc-500 font-mono pointer-events-none">
