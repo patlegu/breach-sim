@@ -59,31 +59,31 @@
   let animPhase: AnimPhase = 'idle'
   let firewallPos: { x: number; y: number } | null = null
 
-  // ── Dimensions réactives de la carte monde ────────────────────────────────
-  // bind:clientWidth/Height sont des bindings Svelte natifs — réactifs et fiables.
-  let mapWidth = 0
-  let mapHeight = 0
-
   // ── Coordonnées du dot attaquant ──────────────────────────────────────────
-  $: attackerDotX = (live && attackerLat !== null && attackerLon !== null && mapWidth > 0)
-    ? (attackerLon + 180) / 360 * mapWidth
-    : 0
-  $: attackerDotY = (live && attackerLat !== null && attackerLon !== null && mapHeight > 0)
-    ? (90 - attackerLat) / 180 * mapHeight
-    : 0
+  // Calculées impérativement via getBoundingClientRect() pour éviter les
+  // problèmes de timing avec bind:clientWidth/Height sur flex min-h-0.
+  let attackerDotX = 0
+  let attackerDotY = 0
 
-  // Arc cross-zone : dot → OPNsense (quadratic bézier latéral)
+  function computeDotPos(lat: number, lon: number) {
+    if (!mapEl) return
+    const rect = mapEl.getBoundingClientRect()
+    if (rect.width === 0 || rect.height === 0) return
+    attackerDotX = (lon + 180) / 360 * rect.width
+    attackerDotY = (90 - lat) / 180 * rect.height
+    // Recalculer l'arc cross-zone avec les nouvelles coordonnées
+    if (firewallPos) {
+      const fx = firewallPos.x, fy = firewallPos.y
+      const dist = Math.sqrt((fx - attackerDotX) ** 2 + (fy - attackerDotY) ** 2)
+      const bow = dist * 0.22
+      const cpX = (attackerDotX + fx) / 2 + (attackerDotX <= fx ? bow : -bow)
+      const cpY = (attackerDotY + fy) / 2
+      firewallArcD = `M${attackerDotX},${attackerDotY} Q${cpX},${cpY} ${fx},${fy}`
+    }
+  }
+
+  // Arc cross-zone : recalculé impérativement dans computeDotPos et updateFirewallPos
   let firewallArcD = ''
-  $: firewallArcD = (() => {
-    if (!live || attackerLat === null || attackerLon === null || !firewallPos || !mapEl) return ''
-    const fx = firewallPos.x
-    const fy = firewallPos.y
-    const dist = Math.sqrt((fx - attackerDotX) ** 2 + (fy - attackerDotY) ** 2)
-    const bow = dist * 0.22
-    const cpX = (attackerDotX + fx) / 2 + (attackerDotX <= fx ? bow : -bow)
-    const cpY = (attackerDotY + fy) / 2
-    return `M${attackerDotX},${attackerDotY} Q${cpX},${cpY} ${fx},${fy}`
-  })()
 
   // Chemin complet : arc cross-zone + suite Cytoscape fusionnés en un seul path
   let combinedPath = ''
@@ -137,6 +137,7 @@
     if (fw.length) {
       const rp = fw.renderedPosition()
       firewallPos = { x: rp.x, y: rp.y + getMapHeight() }
+      if (attackerLat !== null && attackerLon !== null) computeDotPos(attackerLat, attackerLon)
     }
   }
 
@@ -391,7 +392,10 @@
   $: if (live && attackerIp && attackerIp !== '?' && attackerIp !== currentGeoIp) {
     currentGeoIp = attackerIp
     lookupGeo(attackerIp).then(geo => {
-      if (geo) { attackerLat = geo.lat; attackerLon = geo.lon }
+      if (geo) {
+        attackerLat = geo.lat; attackerLon = geo.lon
+        computeDotPos(geo.lat, geo.lon)
+      }
     })
   }
 
@@ -462,6 +466,7 @@
         attackerLat = geo.lat
         attackerLon = geo.lon
         attackerGeoLabel = [geo.city, geo.country].filter(Boolean).join(' · ')
+        computeDotPos(geo.lat, geo.lon)
       }
     }
   })
@@ -484,7 +489,7 @@
 
   <!-- Carte monde (mode live uniquement) -->
   {#if live}
-    <div bind:this={mapEl} bind:clientWidth={mapWidth} bind:clientHeight={mapHeight} class="flex-[1] min-h-0 overflow-hidden relative border-b border-zinc-700">
+    <div bind:this={mapEl} class="flex-[1] min-h-0 overflow-hidden relative border-b border-zinc-700">
       <img src={worldMapUrl} alt="world map" class="w-full h-full" style="object-fit: fill; display: block;" />
       <!-- Label -->
       <span class="absolute top-1.5 left-2 text-xs text-zinc-500 font-mono pointer-events-none">
