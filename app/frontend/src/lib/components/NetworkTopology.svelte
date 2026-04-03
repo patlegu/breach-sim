@@ -58,18 +58,18 @@
   let animPhase: AnimPhase = 'idle'
   let firewallPos: { x: number; y: number } | null = null
 
-  // ── Coordonnées du dot attaquant (script-level pour réactivité) ────────────
-  let attackerDotX = 0
-  let attackerDotY = 0
-  $: if (live && attackerLat !== null && attackerLon !== null && mapEl) {
-    attackerDotX = (attackerLon + 180) / 360 * mapEl.offsetWidth
-    attackerDotY = (90 - attackerLat) / 180 * mapEl.offsetHeight
-  }
+  // ── Coordonnées du dot attaquant (assignations réactives directes) ──────────
+  $: attackerDotX = (live && attackerLat !== null && attackerLon !== null && mapEl)
+    ? (attackerLon + 180) / 360 * mapEl.offsetWidth
+    : 0
+  $: attackerDotY = (live && attackerLat !== null && attackerLon !== null && mapEl)
+    ? (90 - attackerLat) / 180 * mapEl.offsetHeight
+    : 0
 
   // Arc cross-zone : dot → OPNsense (quadratic bézier latéral)
   let firewallArcD = ''
   $: firewallArcD = (() => {
-    if (!live || attackerLat === null || !firewallPos || !mapEl) return ''
+    if (!live || attackerLat === null || attackerLon === null || !firewallPos || !mapEl) return ''
     const fx = firewallPos.x
     const fy = firewallPos.y
     const dist = Math.sqrt((fx - attackerDotX) ** 2 + (fy - attackerDotY) ** 2)
@@ -498,8 +498,9 @@
       <circle cx={attackerDotX} cy={attackerDotY} r="6"  fill={attackColor} fill-opacity="0.35" />
       <circle cx={attackerDotX} cy={attackerDotY} r="3"  fill={attackColor} />
       {#if attackerGeoLabel && liveTpotHit}
-        <text x={attackerDotX} y={attackerDotY - 14} text-anchor="middle" font-size="10" font-family="monospace"
-          fill={attackColor} opacity="0.9" class="pointer-events-none">{attackerGeoLabel}</text>
+        <text x={attackerDotX} y={attackerDotY - 16} text-anchor="middle" font-size="13" font-family="monospace" font-weight="600"
+          fill={attackColor} opacity="0.95" class="pointer-events-none"
+          style="text-shadow: 0 1px 4px #000;">{attackerGeoLabel}</text>
       {/if}
     {/if}
 
