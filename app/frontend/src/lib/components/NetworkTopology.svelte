@@ -434,7 +434,7 @@
 
   <!-- Carte monde (mode live uniquement) -->
   {#if live}
-    <div bind:this={mapEl} class="flex-[2] min-h-0 overflow-hidden relative border-b border-zinc-700">
+    <div bind:this={mapEl} class="flex-[1] min-h-0 overflow-hidden relative border-b border-zinc-700">
       <img src={worldMapUrl} alt="world map" class="w-full h-full" style="object-fit: fill; display: block;" />
       <!-- Label -->
       <span class="absolute top-1.5 left-2 text-xs text-zinc-500 font-mono pointer-events-none">
@@ -448,8 +448,8 @@
     <div bind:this={container} class="w-full h-full rounded-b-lg" style="background: #0c1220;" />
   </div>
 
-  <!-- SVG overlay pleine hauteur -->
-  <svg class="absolute inset-0 w-full h-full pointer-events-none">
+  <!-- SVG overlay pleine hauteur (overflow visible pour l'arc balistique) -->
+  <svg class="absolute inset-0 w-full h-full pointer-events-none" style="overflow: visible;">
     <defs>
       <marker id="atk-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" style="fill: {attackColor}" />
@@ -470,18 +470,27 @@
           fill={attackColor} opacity="0.9" class="pointer-events-none">{attackerGeoLabel}</text>
       {/if}
 
-      <!-- Flèche Fortinet-style cross-zone vers OPNsense -->
+      <!-- Trajectoire balistique vers OPNsense -->
       {#if (animPhase !== 'idle' || liveTpotHit) && firewallPos}
         {@const fx = firewallPos.x}
         {@const fy = firewallPos.y}
-        {@const arc = `M${dotX},${dotY} Q${fx},${dotY} ${fx},${fy}`}
-        <!-- halo -->
-        <path d={arc} fill="none" stroke={attackColor} stroke-width="10" stroke-opacity="0.1"
+        {@const arcH = Math.max(Math.abs(fy - dotY) * 0.9, 120)}
+        {@const cpY  = Math.min(dotY, fy) - arcH}
+        {@const cp1X = dotX + (fx - dotX) * 0.25}
+        {@const cp2X = dotX + (fx - dotX) * 0.75}
+        {@const arc  = `M${dotX},${dotY} C${cp1X},${cpY} ${cp2X},${cpY} ${fx},${fy}`}
+        <!-- lueur statique (trajectoire complète visible en filigrane) -->
+        <path d={arc} fill="none" stroke={attackColor} stroke-width="14" stroke-opacity="0.06"
           stroke-linecap="round" />
-        <!-- trait animé -->
-        <path d={arc} fill="none" stroke={attackColor} stroke-width="2.5"
-          stroke-dasharray="12 8" stroke-linecap="round"
-          class={animPhase === 'attacking' || liveTpotHit ? 'anim-attack' : 'anim-defend'} />
+        <path d={arc} fill="none" stroke={attackColor} stroke-width="1.5" stroke-opacity="0.25"
+          stroke-linecap="round" />
+        <!-- balle qui parcourt la trajectoire -->
+        <path d={arc} fill="none" stroke={attackColor} stroke-width="4"
+          stroke-dasharray="60 2000" stroke-linecap="round"
+          class="anim-bullet" />
+        <path d={arc} fill="none" stroke="white" stroke-width="1.5"
+          stroke-dasharray="60 2000" stroke-linecap="round" stroke-opacity="0.7"
+          class="anim-bullet" />
       {/if}
     {/if}
 
@@ -515,6 +524,12 @@
   }
   .anim-attack { animation: flow-dash 0.45s linear infinite; }
   .anim-defend { animation: flow-dash 0.7s linear infinite; }
+
+  @keyframes shoot {
+    from { stroke-dashoffset: 0; }
+    to   { stroke-dashoffset: -2060; }
+  }
+  .anim-bullet { animation: shoot 1.6s linear infinite; }
 
   @keyframes dot-pulse {
     0%   { r: 8;  opacity: 0.5; }
