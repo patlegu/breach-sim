@@ -474,7 +474,7 @@
       {#if (animPhase !== 'idle' || liveTpotHit) && firewallPos}
         {@const fx = firewallPos.x}
         {@const fy = firewallPos.y}
-        {@const arcH = Math.max(Math.abs(fy - dotY) * 0.9, 120)}
+        {@const arcH = Math.max(Math.abs(fy - dotY) * 0.45, 60)}
         {@const cpY  = Math.min(dotY, fy) - arcH}
         {@const cp1X = dotX + (fx - dotX) * 0.25}
         {@const cp2X = dotX + (fx - dotX) * 0.75}
