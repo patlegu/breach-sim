@@ -141,6 +141,7 @@
 
   $: scenarioStatus = $scenarioStore.status
   $: isRunning = scenarioStatus === 'running'
+  $: labCfgMap = labConfig ? (labConfig as unknown as Record<string, string>) : null
 </script>
 
 <div class="min-h-screen bg-zinc-950 flex flex-col">
@@ -233,7 +234,11 @@
       <div class="flex-[3] min-h-0 p-3 border-b border-zinc-800">
         <p class="text-xs text-zinc-500 uppercase tracking-wider mb-2">Topologie réseau</p>
         <div class="h-[calc(100%-1.25rem)]">
-          <NetworkTopology {attackerIp} {attackerRole} scenarioId={selectedId ?? ''} />
+          <NetworkTopology
+            {attackerIp} {attackerRole} scenarioId={selectedId ?? ''}
+            live={labConfig?.live ?? false}
+            labConfig={labCfgMap}
+          />
         </div>
       </div>
 
@@ -242,19 +247,21 @@
         <TpotWidget counts={$tpotStore.counts} feed={$tpotStore.feed} tpotIp={labConfig?.tpot_ip ?? ''} />
       </div>
 
-      <!-- Sélecteur de scénario (25% restant) -->
-      <div class="flex-[1] min-h-0 overflow-y-auto p-4">
-        {#if ready && scenarios.length > 0}
-          <p class="text-xs text-zinc-500 uppercase tracking-wider mb-3">Scénario</p>
-          <ScenarioSelector
-            {scenarios}
-            bind:selectedId
-            disabled={isRunning}
-          />
-        {:else if !ready}
-          <p class="text-xs text-zinc-600 text-center pt-4">Chargement…</p>
-        {/if}
-      </div>
+      <!-- Sélecteur de scénario (masqué en mode live) -->
+      {#if !labConfig?.live}
+        <div class="flex-[1] min-h-0 overflow-y-auto p-4">
+          {#if ready && scenarios.length > 0}
+            <p class="text-xs text-zinc-500 uppercase tracking-wider mb-3">Scénario</p>
+            <ScenarioSelector
+              {scenarios}
+              bind:selectedId
+              disabled={isRunning}
+            />
+          {:else if !ready}
+            <p class="text-xs text-zinc-600 text-center pt-4">Chargement…</p>
+          {/if}
+        </div>
+      {/if}
     </div>
 
     <!-- Colonne droite : timeline des steps -->

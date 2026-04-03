@@ -7,6 +7,8 @@
   export let attackerIp: string = '?'
   export let attackerRole: string = 'Attaquant externe'
   export let scenarioId: string = ''
+  export let live: boolean = false
+  export let labConfig: Record<string, string> | null = null
 
   let container: HTMLDivElement
   let cy: cytoscape.Core | null = null
@@ -20,6 +22,50 @@
     normal:   { bg: '#27272a', border: '#52525b' },
     attacked: { bg: '#7f1d1d', border: '#ef4444' },
     defended: { bg: '#064e3b', border: '#10b981' },
+  }
+
+  // ── Topologie live (KVM réel) ──────────────────────────────────────────────
+
+  function getLiveConfig(cfg: Record<string, string>) {
+    const fw   = cfg.opnsense_ip  ?? '192.168.1.1'
+    const cs   = cfg.crowdsec_ip  ?? '192.168.1.1'
+    const web  = cfg.srv_web_ip   ?? '192.168.1.10'
+    const db   = cfg.srv_db_ip    ?? '192.168.21.10'
+    const tpot = cfg.tpot_ip !== '127.0.0.1' ? cfg.tpot_ip : '192.168.1.50'
+    return {
+      nodes: [
+        { id: 'internet',  label: '🌐 Internet\nWAN',              x: 300, y: 40  },
+        { id: 'firewall',  label: `🛡 OPNsense\n${fw}`,            x: 300, y: 150 },
+        { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',             x: 80,  y: 270 },
+        { id: 'dmz',       label: '🔒 DMZ\n192.168.1.0/24',        x: 240, y: 270 },
+        { id: 'lan',       label: '🏠 LAN\n192.168.21.0/24',       x: 390, y: 270 },
+        { id: 'wireguard', label: '🔐 WireGuard\nVPN',             x: 530, y: 270 },
+        { id: 'srv-web',   label: `💻 srv-web\n${web}`,            x: 160, y: 400 },
+        { id: 'tpot',      label: `🍯 T-Pot\n${tpot}`,              x: 310, y: 400 },
+        { id: 'srv-db',    label: `🗄 srv-db\n${db}`,              x: 430, y: 400 },
+      ],
+      edges: [
+        { id: 'e-net-fw',   source: 'internet',  target: 'firewall'  },
+        { id: 'e-fw-cs',    source: 'firewall',  target: 'crowdsec'  },
+        { id: 'e-fw-dmz',   source: 'firewall',  target: 'dmz'       },
+        { id: 'e-fw-lan',   source: 'firewall',  target: 'lan'       },
+        { id: 'e-fw-wg',    source: 'firewall',  target: 'wireguard' },
+        { id: 'e-dmz-web',  source: 'dmz',       target: 'srv-web'   },
+        { id: 'e-dmz-tpot', source: 'dmz',       target: 'tpot'      },
+        { id: 'e-lan-db',   source: 'lan',       target: 'srv-db'    },
+      ],
+      info: {
+        internet:  { ip: 'WAN', role: 'Périmètre réseau', service: 'Transit' },
+        firewall:  { ip: fw,   role: 'Gateway / IDS', service: 'OPNsense 24.x' },
+        crowdsec:  { ip: cs,   role: 'IDPS', service: 'CrowdSec LAPI' },
+        dmz:       { ip: '192.168.1.0/24', role: 'Zone démilitarisée', service: 'Réseau isolé' },
+        lan:       { ip: '192.168.21.0/24', role: 'Réseau local', service: 'LAN interne' },
+        wireguard: { ip: '10.0.0.1', role: 'VPN Gateway', service: 'WireGuard 1.0' },
+        'srv-web': { ip: web,  role: 'Serveur web', service: 'Nginx 1.24' },
+        tpot:      { ip: '192.168.1.50', role: 'Honeypot T-Pot CE', service: 'Cowrie · Dionaea · …' },
+        'srv-db':  { ip: db,   role: 'Base de données', service: 'PostgreSQL 16' },
+      },
+    }
   }
 
   // ── Configurations topologie par scénario ──────────────────────────────────
@@ -147,7 +193,7 @@
     stopPulse()
     if (cy) { cy.destroy(); cy = null }
 
-    const cfg = getConfig(sid, ip)
+    const cfg = live && labConfig ? getLiveConfig(labConfig) : getConfig(sid, ip)
     nodeInfo = cfg.info as typeof nodeInfo
 
     cy = cytoscape({
@@ -211,8 +257,8 @@
     cy.on('mouseout', 'node', () => { tooltipVisible = false })
   }
 
-  // Reconstruire quand le scénario ou l'IP change
-  $: if (container && scenarioId) buildCy(scenarioId, attackerIp)
+  // Reconstruire quand le scénario/IP change, ou quand labConfig arrive en mode live
+  $: if (container && (scenarioId || live)) buildCy(scenarioId, attackerIp)
 
   // Réagir aux changements de couleur de nœuds + edge overrides
   const unsubTopology = topologyStore.subscribe(state => {
