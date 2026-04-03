@@ -231,8 +231,10 @@
     <div class="w-2/5 border-r border-zinc-800 flex flex-col overflow-hidden">
 
       <!-- Topologie -->
-      <div class="flex-1 min-h-0 overflow-hidden p-3 flex flex-col">
-        <p class="text-xs text-zinc-500 uppercase tracking-wider mb-2 shrink-0">Topologie réseau</p>
+      <div class="flex-1 min-h-0 overflow-hidden flex flex-col" class:p-3={!labConfig?.live} class:p-0={labConfig?.live}>
+        {#if !labConfig?.live}
+          <p class="text-xs text-zinc-500 uppercase tracking-wider mb-2 shrink-0">Topologie réseau</p>
+        {/if}
         <div class="flex-1 min-h-0">
           <NetworkTopology
             {attackerIp} {attackerRole} scenarioId={selectedId ?? ''}
