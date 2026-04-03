@@ -337,6 +337,31 @@ async def stream_events():
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
+# ── Géolocalisation IP (MaxMind GeoLite2) ────────────────────────────────────
+
+@app.get("/api/geo/{ip}")
+async def geolocate(ip: str):
+    """Géolocalisation IP via base MaxMind GeoLite2 locale."""
+    import geoip2.database
+    import geoip2.errors
+    db_path = os.getenv("BREACH_GEOIP_DB", "")
+    if not db_path or not Path(db_path).exists():
+        raise HTTPException(503, "Base GeoLite2 non disponible (BREACH_GEOIP_DB)")
+    try:
+        with geoip2.database.Reader(db_path) as reader:
+            record = reader.city(ip)
+            return {
+                "lat": record.location.latitude,
+                "lon": record.location.longitude,
+                "country": record.country.name,
+                "city": record.city.name,
+            }
+    except geoip2.errors.AddressNotFoundError:
+        raise HTTPException(404, f"IP {ip} non trouvée dans la base")
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 # ── Static files (frontend buildé) ───────────────────────────────────────────
 
 _static_dir = Path(__file__).parent / "static"

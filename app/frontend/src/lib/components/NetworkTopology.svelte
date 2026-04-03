@@ -27,15 +27,15 @@
   let currentGeoIp = ''
   const geoCache = new Map<string, { lat: number; lon: number }>()
 
-  async function lookupGeo(ip: string): Promise<{ lat: number; lon: number } | null> {
+  async function lookupGeo(ip: string): Promise<{ lat: number; lon: number; country?: string; city?: string } | null> {
     if (geoCache.has(ip)) return geoCache.get(ip)!
     try {
-      const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,lat,lon`)
+      const r = await fetch(`/api/geo/${ip}`)
+      if (!r.ok) return null
       const d = await r.json()
-      if (d.status === 'success') {
-        const geo = { lat: d.lat, lon: d.lon }
-        geoCache.set(ip, geo)
-        return geo
+      if (d.lat != null && d.lon != null) {
+        geoCache.set(ip, d)
+        return d
       }
     } catch { /* silencieux */ }
     return null
