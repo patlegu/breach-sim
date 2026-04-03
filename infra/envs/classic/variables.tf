@@ -80,8 +80,8 @@ variable "tpot_ports" {
   description = "Ports TCP honeypot T-Pot à exposer via OPNsense NAT"
   type        = list(number)
   default = [
-    # SSH / Telnet
-    22, 2222, 23, 2323,
+    # SSH / Telnet (2222 réservé admin korrig)
+    22, 23, 2323,
     # Mail
     25, 110, 143, 993, 995,
     # Web
