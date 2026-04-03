@@ -349,8 +349,9 @@
       userPanningEnabled: false,
     })
 
-    // Délayer fit() pour que le flex layout ait calculé les dimensions du conteneur
+    // cy.resize() force Cytoscape à relire les dimensions du conteneur flex
     requestAnimationFrame(() => {
+      cy?.resize()
       cy?.fit(cy.nodes(), live ? 4 : 20)
       updateFirewallPos()
     })
