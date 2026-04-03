@@ -349,7 +349,11 @@
       userPanningEnabled: false,
     })
 
-    cy.fit(cy.nodes(), live ? 2 : 20)
+    // Délayer fit() pour que le flex layout ait calculé les dimensions du conteneur
+    requestAnimationFrame(() => {
+      cy?.fit(cy.nodes(), live ? 4 : 20)
+      updateFirewallPos()
+    })
 
     if ('hiddenEdges' in cfg) {
       (cfg as any).hiddenEdges.forEach((id: string) => cy!.$(`#${id}`).style('display', 'none'))
@@ -368,8 +372,6 @@
     })
     cy.on('mouseout', 'node', () => { tooltipVisible = false })
 
-    // Position initiale du nœud firewall pour la flèche cross-zone
-    setTimeout(updateFirewallPos, 100)
   }
 
   $: if (container && (scenarioId || live)) buildCy(scenarioId, attackerIp)
