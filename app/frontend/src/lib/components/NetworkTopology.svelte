@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
-  import { fade } from 'svelte/transition'
   import { topologyStore, type NodeStatus } from '../stores/topologyStore'
   import { animStore, type AnimPhase } from '../stores/animStore'
   import { tpotStore } from '../stores/tpotStore'
@@ -505,8 +504,9 @@
     {/if}
 
     <!-- Trajectoire unifiée : carte monde → OPNsense → cible (chemin continu) -->
-    {#if pathToShow && (animPhase !== 'idle' || liveTpotHit)}
-      <g transition:fade={{ duration: 600 }}>
+    {#if pathToShow}
+      {@const pathVisible = animPhase !== 'idle' || liveTpotHit}
+      <g style="opacity: {pathVisible ? 1 : 0}; transition: opacity 0.6s ease;">
         <path d={pathToShow} fill="none" stroke={attackColor} stroke-width="14" stroke-opacity="0.06" stroke-linecap="round" stroke-linejoin="round" />
         <path d={pathToShow} fill="none" stroke={attackColor} stroke-width="1.5" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round" />
         <path d={pathToShow} fill="none" stroke={attackColor} stroke-width="4" stroke-dasharray="60 2000" stroke-linecap="round" stroke-linejoin="round" class="anim-bullet" />
