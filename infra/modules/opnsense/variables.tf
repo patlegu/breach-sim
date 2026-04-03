@@ -18,6 +18,22 @@ variable "wan_network_id" {
   type        = string
 }
 
+variable "wan_cidr" {
+  description = "CIDR du réseau WAN (ex: 10.0.1.0/24) — OPNsense prend .2, gateway .1"
+  type        = string
+}
+
+variable "tpot_ip" {
+  description = "IP statique T-Pot dans la DMZ (ex: 192.168.1.50)"
+  type        = string
+}
+
+variable "tpot_ports" {
+  description = "Liste des ports TCP à rediriger vers T-Pot via NAT (honeypot ports)"
+  type        = list(number)
+  default     = [22, 23, 25, 80, 110, 143, 445, 1433, 3306, 3389, 5900, 6379, 8080, 8888, 27017]
+}
+
 variable "dmz_network_id" {
   description = "ID libvirt du réseau DMZ (vtnet1 OPNsense)"
   type        = string

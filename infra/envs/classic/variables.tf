@@ -75,3 +75,15 @@ variable "tpot_web_pw" {
   type        = string
   sensitive   = true
 }
+
+variable "tpot_ports" {
+  description = "Ports TCP honeypot T-Pot à exposer via OPNsense NAT"
+  type        = list(number)
+  default     = [22, 23, 25, 80, 110, 143, 445, 1433, 3306, 3389, 5900, 6379, 8080, 8888, 27017]
+}
+
+variable "public_iface" {
+  description = "Interface réseau publique de korrig (ex: enp41s0)"
+  type        = string
+  default     = "enp41s0"
+}

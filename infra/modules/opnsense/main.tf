@@ -56,6 +56,10 @@ locals {
   lan_dhcp_from = cidrhost(var.lan_cidr, 10)
   lan_dhcp_to   = cidrhost(var.lan_cidr, 99)
 
+  wan_ip      = cidrhost(var.wan_cidr, 2)
+  wan_prefix  = split("/", var.wan_cidr)[1]
+  wan_gateway = cidrhost(var.wan_cidr, 1)
+
   config_xml = templatefile("${path.module}/templates/config.xml.tftpl", {
     hostname      = "breach${var.instance_id}-opnsense"
     root_hash     = var.root_password_hash
@@ -72,6 +76,11 @@ locals {
     lan_prefix    = local.lan_prefix
     lan_dhcp_from = local.lan_dhcp_from
     lan_dhcp_to   = local.lan_dhcp_to
+    wan_ip        = local.wan_ip
+    wan_prefix    = local.wan_prefix
+    wan_gateway   = local.wan_gateway
+    tpot_ip       = var.tpot_ip
+    tpot_ports    = var.tpot_ports
   })
 }
 

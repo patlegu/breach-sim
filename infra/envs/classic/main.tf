@@ -59,6 +59,7 @@ module "opnsense" {
   libvirt_uri         = var.libvirt_uri
   libvirt_pool        = var.libvirt_pool
   wan_network_id      = module.network.wan_network_id
+  wan_cidr            = module.network.wan_cidr
   dmz_network_id      = module.network.dmz_network_id
   lan_network_id      = module.network.lan_network_id
   dmz_cidr            = module.network.dmz_cidr
@@ -71,8 +72,25 @@ module "opnsense" {
   ssh_public_key      = var.ssh_public_key
   api_key             = var.opnsense_api_key
   api_secret          = var.opnsense_api_secret
+  tpot_ip             = cidrhost(module.network.dmz_cidr, 50)
+  tpot_ports          = var.tpot_ports
 
   depends_on = [terraform_data.libvirt_pool]
+}
+
+# ── Règles iptables korrig (NAT vers OPNsense WAN) ────────────────────────────
+
+module "korrig_nat" {
+  source = "../../modules/korrig-nat"
+
+  instance_id     = var.instance_id
+  libvirt_uri     = var.libvirt_uri
+  wan_cidr        = module.network.wan_cidr
+  opnsense_wan_ip = cidrhost(module.network.wan_cidr, 2)
+  public_iface    = var.public_iface
+  tpot_ports      = var.tpot_ports
+
+  depends_on = [module.opnsense, module.tpot]
 }
 
 # ── T-Pot honeypot (DMZ .50) ─────────────────────────────────────────────────

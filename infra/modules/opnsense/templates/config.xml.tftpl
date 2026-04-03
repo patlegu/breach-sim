@@ -285,16 +285,14 @@
       <enable>1</enable>
       <if>vtnet1</if>
       <mtu/>
-      <ipaddr>dhcp</ipaddr>
-      <ipaddrv6>dhcp6</ipaddrv6>
-      <subnet/>
-      <gateway/>
+      <ipaddr>${wan_ip}</ipaddr>
+      <ipaddrv6/>
+      <subnet>${wan_prefix}</subnet>
+      <gateway>WAN_GW</gateway>
       <blockpriv>0</blockpriv>
       <blockbogons>0</blockbogons>
-      <dhcphostname/>
       <media/>
       <mediaopt/>
-      <dhcp6-ia-pd-len>0</dhcp6-ia-pd-len>
     </wan>
     <lan>
       <enable>1</enable>
@@ -355,6 +353,20 @@
     <outbound>
       <mode>automatic</mode>
     </outbound>
+%{ for port in tpot_ports ~}
+    <rule>
+      <interface>wan</interface>
+      <protocol>tcp</protocol>
+      <source><any/></source>
+      <destination>
+        <network>wanip</network>
+        <port>${port}</port>
+      </destination>
+      <target>${tpot_ip}</target>
+      <local-port>${port}</local-port>
+      <descr>T-Pot honeypot port ${port}</descr>
+    </rule>
+%{ endfor ~}
   </nat>
   <filter>
     <rule>
@@ -385,21 +397,7 @@
       <type>pass</type>
       <ipprotocol>inet</ipprotocol>
       <protocol>tcp</protocol>
-      <descr>Allow SSH from WAN</descr>
-      <interface>wan</interface>
-      <source>
-        <any/>
-      </source>
-      <destination>
-        <network>wanip</network>
-        <port>22</port>
-      </destination>
-    </rule>
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <descr>Allow HTTPS API from WAN</descr>
+      <descr>Allow HTTPS API from WAN (OPNsense management)</descr>
       <interface>wan</interface>
       <source>
         <any/>
@@ -409,7 +407,35 @@
         <port>443</port>
       </destination>
     </rule>
+%{ for port in tpot_ports ~}
+    <rule>
+      <type>pass</type>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <descr>T-Pot honeypot port ${port}</descr>
+      <interface>wan</interface>
+      <source>
+        <any/>
+      </source>
+      <destination>
+        <address>${tpot_ip}</address>
+        <port>${port}</port>
+      </destination>
+    </rule>
+%{ endfor ~}
   </filter>
+  <gateways>
+    <gateway_item>
+      <interface>wan</interface>
+      <gateway>${wan_gateway}</gateway>
+      <name>WAN_GW</name>
+      <weight>1</weight>
+      <ipprotocol>inet</ipprotocol>
+      <interval/>
+      <defaultgw>1</defaultgw>
+      <descr>WAN Gateway (virbr2)</descr>
+    </gateway_item>
+  </gateways>
   <rrd>
     <enable/>
   </rrd>
