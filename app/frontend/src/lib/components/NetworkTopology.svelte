@@ -16,6 +16,7 @@
   let mapEl: HTMLDivElement
   let cy: cytoscape.Core | null = null
   let pulseInterval: ReturnType<typeof setInterval> | null = null
+  let resizeObserver: ResizeObserver | null = null
   let tooltipVisible = false
   let tooltipText = ''
   let tooltipX = 0
@@ -349,12 +350,14 @@
       userPanningEnabled: false,
     })
 
-    // cy.resize() force Cytoscape à relire les dimensions du conteneur flex
-    requestAnimationFrame(() => {
+    // ResizeObserver : refit automatique à chaque changement de taille du conteneur
+    resizeObserver?.disconnect()
+    resizeObserver = new ResizeObserver(() => {
       cy?.resize()
       cy?.fit(cy.nodes(), live ? 4 : 20)
       updateFirewallPos()
     })
+    resizeObserver.observe(container)
 
     if ('hiddenEdges' in cfg) {
       (cfg as any).hiddenEdges.forEach((id: string) => cy!.$(`#${id}`).style('display', 'none'))
@@ -462,6 +465,7 @@
 
   onDestroy(() => {
     stopPulse()
+    resizeObserver?.disconnect()
     unsubTopology()
     unsubAnim()
     unsubTpot()
