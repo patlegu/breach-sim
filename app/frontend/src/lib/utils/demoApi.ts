@@ -52,7 +52,11 @@ export function connectDemoSSE(): () => void {
             port: event.port,
           })
           topologyStore.applyEvent('tpot_hit')
-          setTimeout(() => topologyStore.resetNode('tpot'), 2000)
+          setTimeout(() => {
+            topologyStore.resetNode('tpot')
+            topologyStore.resetNode('attacker')
+            topologyStore.resetNode('internet')
+          }, 2000)
           break
         case 'tpot_counts':
           tpotStore.setCounts(event.containers ?? [])

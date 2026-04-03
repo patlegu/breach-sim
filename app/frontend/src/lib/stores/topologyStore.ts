@@ -44,7 +44,7 @@ const EVENT_MAP: Record<string, EventEffect> = {
     edgeOverrides: { 'e-lan-inf': 'hidden', 'e-inf-wg': 'visible' },
   },
   // T-Pot live hits
-  tpot_hit: { nodes: { tpot: 'attacked' } },
+  tpot_hit: { nodes: { tpot: 'attacked', attacker: 'attacked', internet: 'attacked' } },
 }
 
 function createTopologyStore() {

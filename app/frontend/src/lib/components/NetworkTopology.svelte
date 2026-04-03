@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte'
   import { topologyStore, type NodeStatus } from '../stores/topologyStore'
   import { animStore } from '../stores/animStore'
+  import { tpotStore } from '../stores/tpotStore'
   import cytoscape from 'cytoscape'
 
   export let attackerIp: string = '?'
@@ -34,7 +35,8 @@
     const tpot = cfg.tpot_ip !== '127.0.0.1' ? cfg.tpot_ip : '192.168.1.50'
     return {
       nodes: [
-        { id: 'internet',  label: '🌐 Internet\nWAN',              x: 300, y: 40  },
+        { id: 'attacker',  label: '🔴 Attaquant\n…',               x: 300, y: 40  },
+        { id: 'internet',  label: '🌐 Internet\nWAN',              x: 300, y: 130 },
         { id: 'firewall',  label: `🛡 OPNsense\n${fw}`,            x: 300, y: 150 },
         { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',             x: 80,  y: 270 },
         { id: 'dmz',       label: '🔒 DMZ\n192.168.1.0/24',        x: 240, y: 270 },
@@ -45,6 +47,7 @@
         { id: 'srv-db',    label: `🗄 srv-db\n${db}`,              x: 430, y: 400 },
       ],
       edges: [
+        { id: 'e-atk-net',  source: 'attacker',  target: 'internet'  },
         { id: 'e-net-fw',   source: 'internet',  target: 'firewall'  },
         { id: 'e-fw-cs',    source: 'firewall',  target: 'crowdsec'  },
         { id: 'e-fw-dmz',   source: 'firewall',  target: 'dmz'       },
@@ -55,6 +58,7 @@
         { id: 'e-lan-db',   source: 'lan',       target: 'srv-db'    },
       ],
       info: {
+        attacker:  { ip: '?', role: 'Dernière IP attaquante', service: 'T-Pot feed' },
         internet:  { ip: 'WAN', role: 'Périmètre réseau', service: 'Transit' },
         firewall:  { ip: fw,   role: 'Gateway / IDS', service: 'OPNsense 24.x' },
         crowdsec:  { ip: cs,   role: 'IDPS', service: 'CrowdSec LAPI' },
@@ -287,14 +291,27 @@
     else if (state.phase === 'defended') flashDefended(edges)
   })
 
+  // En mode live : mettre à jour le label du nœud attaquant avec la dernière IP T-Pot
+  const unsubTpot = tpotStore.subscribe(state => {
+    if (!cy || !live) return
+    const lastIp = state.feed[0]?.src_ip
+    if (!lastIp) return
+    const node = cy.$('#attacker')
+    if (node.length) {
+      node.data('label', `🔴 Attaquant\n${lastIp}`)
+      nodeInfo['attacker'] = { ip: lastIp, role: 'Dernière IP attaquante', service: 'T-Pot feed' }
+    }
+  })
+
   onMount(() => {
-    if (scenarioId) buildCy(scenarioId, attackerIp)
+    if (scenarioId || live) buildCy(scenarioId, attackerIp)
   })
 
   onDestroy(() => {
     stopPulse()
     unsubTopology()
     unsubAnim()
+    unsubTpot()
     cy?.destroy()
   })
 </script>
