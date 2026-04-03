@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
   import { topologyStore, type NodeStatus } from '../stores/topologyStore'
-  import { animStore } from '../stores/animStore'
+  import { animStore, type AnimPhase } from '../stores/animStore'
   import { tpotStore } from '../stores/tpotStore'
   import cytoscape from 'cytoscape'
 
@@ -18,6 +18,37 @@
   let tooltipText = ''
   let tooltipX = 0
   let tooltipY = 0
+
+  const SCENARIO_COLORS: Record<string, string> = {
+    ssh_brute_force: '#ef4444',
+    log4shell:       '#f97316',
+    ddos_udp:        '#a855f7',
+    ransomware_c2:   '#dc2626',
+  }
+  const DEFEND_COLOR = '#10b981'
+
+  let attackPathD = ''
+  let attackColor = '#ef4444'
+  let animPhase: AnimPhase = 'idle'
+
+  function buildAttackPath(edgeIds: string[]): string {
+    if (!cy || edgeIds.length === 0) return ''
+    const nodeIds: string[] = []
+    for (const eid of edgeIds) {
+      const edge = cy.$(`#${eid}`)
+      if (!edge.length) continue
+      const src = edge.source().id()
+      const tgt = edge.target().id()
+      if (nodeIds.length === 0) nodeIds.push(src)
+      if (nodeIds[nodeIds.length - 1] !== tgt) nodeIds.push(tgt)
+    }
+    const points = nodeIds.map(id => {
+      const pos = cy!.$(`#${id}`).renderedPosition()
+      return `${pos.x},${pos.y}`
+    })
+    if (points.length < 2) return ''
+    return 'M ' + points.join(' L ')
+  }
 
   const NODE_COLORS: Record<NodeStatus, { bg: string; border: string }> = {
     normal:   { bg: '#27272a', border: '#52525b' },
@@ -287,12 +318,24 @@
 
   // Réagir aux animations
   const unsubAnim = animStore.subscribe(state => {
-    if (!cy) return
-    const cfg = getConfig(scenarioId, attackerIp)
-    if (state.phase === 'idle') { resetEdges(cfg.edges); return }
+    animPhase = state.phase
+    const cfg = live && labConfig ? getLiveConfig(labConfig) : getConfig(scenarioId, attackerIp)
+    if (state.phase === 'idle') {
+      if (cy) resetEdges(cfg.edges)
+      attackPathD = ''
+      return
+    }
     const edges = state.activeEdges
-    if (state.phase === 'attacking') startPulse(edges)
-    else if (state.phase === 'defended') flashDefended(edges)
+    attackColor = state.phase === 'defended'
+      ? DEFEND_COLOR
+      : (SCENARIO_COLORS[scenarioId] ?? '#ef4444')
+    if (cy) attackPathD = buildAttackPath(edges)
+    if (state.phase === 'attacking') {
+      if (cy) startPulse(edges)
+    } else if (state.phase === 'defended') {
+      if (cy) flashDefended(edges)
+      setTimeout(() => { attackPathD = '' }, 1500)
+    }
   })
 
   // En mode live : mettre à jour le label du nœud attaquant avec la dernière IP T-Pot
@@ -323,6 +366,27 @@
 <div class="relative w-full h-full">
   <div bind:this={container} class="w-full h-full rounded-lg bg-zinc-900" />
 
+  <!-- SVG overlay : flèche d'attaque animée -->
+  <svg class="absolute inset-0 w-full h-full pointer-events-none">
+    <defs>
+      <marker id="atk-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" style="fill: {attackColor}" />
+      </marker>
+    </defs>
+    {#if attackPathD && animPhase !== 'idle'}
+      <!-- halo -->
+      <path d={attackPathD} fill="none"
+        stroke={attackColor} stroke-width="10" stroke-opacity="0.12"
+        stroke-linecap="round" stroke-linejoin="round" />
+      <!-- trait animé -->
+      <path d={attackPathD} fill="none"
+        stroke={attackColor} stroke-width="2.5"
+        stroke-dasharray="12 8" stroke-linecap="round" stroke-linejoin="round"
+        marker-end="url(#atk-arrow)"
+        class={animPhase === 'attacking' ? 'anim-attack' : 'anim-defend'} />
+    {/if}
+  </svg>
+
   {#if tooltipVisible}
     <div
       class="absolute z-10 pointer-events-none px-2 py-1.5 rounded bg-zinc-800 border border-zinc-600 text-xs font-mono text-zinc-200 whitespace-pre shadow-lg"
@@ -332,3 +396,11 @@
     </div>
   {/if}
 </div>
+
+<style>
+  @keyframes flow-dash {
+    to { stroke-dashoffset: -20; }
+  }
+  .anim-attack { animation: flow-dash 0.45s linear infinite; }
+  .anim-defend { animation: flow-dash 0.7s linear infinite; }
+</style>
