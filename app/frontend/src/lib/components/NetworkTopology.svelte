@@ -60,22 +60,9 @@
   let firewallPos: { x: number; y: number } | null = null
 
   // ── Dimensions réactives de la carte monde ────────────────────────────────
-  // mapEl.offsetWidth/Height ne sont PAS des dépendances Svelte — on les stocke
-  // dans des variables réactives mises à jour par un ResizeObserver dédié.
+  // bind:clientWidth/Height sont des bindings Svelte natifs — réactifs et fiables.
   let mapWidth = 0
   let mapHeight = 0
-  let mapResizeObserver: ResizeObserver | null = null
-
-  $: if (mapEl) {
-    mapResizeObserver?.disconnect()
-    mapWidth = mapEl.offsetWidth
-    mapHeight = mapEl.offsetHeight
-    mapResizeObserver = new ResizeObserver(() => {
-      mapWidth = mapEl!.offsetWidth
-      mapHeight = mapEl!.offsetHeight
-    })
-    mapResizeObserver.observe(mapEl)
-  }
 
   // ── Coordonnées du dot attaquant ──────────────────────────────────────────
   $: attackerDotX = (live && attackerLat !== null && attackerLon !== null && mapWidth > 0)
@@ -486,7 +473,6 @@
   onDestroy(() => {
     stopPulse()
     resizeObserver?.disconnect()
-    mapResizeObserver?.disconnect()
     unsubTopology()
     unsubAnim()
     unsubTpot()
@@ -498,7 +484,7 @@
 
   <!-- Carte monde (mode live uniquement) -->
   {#if live}
-    <div bind:this={mapEl} class="flex-[1] min-h-0 overflow-hidden relative border-b border-zinc-700">
+    <div bind:this={mapEl} bind:clientWidth={mapWidth} bind:clientHeight={mapHeight} class="flex-[1] min-h-0 overflow-hidden relative border-b border-zinc-700">
       <img src={worldMapUrl} alt="world map" class="w-full h-full" style="object-fit: fill; display: block;" />
       <!-- Label -->
       <span class="absolute top-1.5 left-2 text-xs text-zinc-500 font-mono pointer-events-none">
