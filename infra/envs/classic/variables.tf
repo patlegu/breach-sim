@@ -79,7 +79,40 @@ variable "tpot_web_pw" {
 variable "tpot_ports" {
   description = "Ports TCP honeypot T-Pot à exposer via OPNsense NAT"
   type        = list(number)
-  default     = [22, 23, 25, 80, 110, 143, 445, 1433, 3306, 3389, 5900, 6379, 8080, 8888, 27017]
+  default = [
+    # SSH / Telnet
+    22, 2222, 23, 2323,
+    # Mail
+    25, 110, 143, 993, 995,
+    # Web
+    80, 8080, 8443,
+    # FTP / Nameserver
+    21, 42,
+    # Windows / SMB / RDP
+    135, 445, 1433, 3389,
+    # VPN
+    1723,
+    # Industrial (Conpot)
+    102, 502,
+    # Databases
+    3306, 5432, 6379, 27017,
+    # VNC
+    5900,
+    # Android Debug Bridge (ADBHoney)
+    5555,
+    # SIP (Sentrypeer)
+    5060, 5061,
+    # Elasticsearch / log4pot
+    9200,
+    # Memcached TCP
+    11211,
+    # IPP (Ipphoney)
+    631,
+    # DICOM (Medpot)
+    2575,
+    # Misc
+    8888,
+  ]
 }
 
 variable "public_iface" {
