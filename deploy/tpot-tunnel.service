@@ -1,0 +1,24 @@
+[Unit]
+Description=SSH tunnel — korrig:64298 → T-Pot ES
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/ssh \
+    -N \
+    -o StrictHostKeyChecking=no \
+    -o ServerAliveInterval=30 \
+    -o ServerAliveCountMax=3 \
+    -o ExitOnForwardFailure=yes \
+    -i /root/.ssh/id_ed25519 \
+    -p 64295 \
+    -L 127.0.0.1:64298:127.0.0.1:64298 \
+    breach@192.168.1.50
+
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
