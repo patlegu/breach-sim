@@ -32,19 +32,21 @@
     const cs   = cfg.crowdsec_ip  ?? '192.168.1.1'
     const web  = cfg.srv_web_ip   ?? '192.168.1.10'
     const db   = cfg.srv_db_ip    ?? '192.168.21.10'
+    const app  = cfg.infected_ip  ?? '192.168.21.20'
     const tpot = cfg.tpot_ip !== '127.0.0.1' ? cfg.tpot_ip : '192.168.1.50'
     return {
       nodes: [
         { id: 'attacker',  label: '🔴 Attaquant\n…',               x: 300, y: 40  },
         { id: 'internet',  label: '🌐 Internet\nWAN',              x: 300, y: 130 },
-        { id: 'firewall',  label: `🛡 OPNsense\n${fw}`,            x: 300, y: 150 },
-        { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',             x: 80,  y: 270 },
-        { id: 'dmz',       label: '🔒 DMZ\n192.168.1.0/24',        x: 240, y: 270 },
-        { id: 'lan',       label: '🏠 LAN\n192.168.21.0/24',       x: 390, y: 270 },
-        { id: 'wireguard', label: '🔐 WireGuard\nVPN',             x: 530, y: 270 },
-        { id: 'srv-web',   label: `💻 srv-web\n${web}`,            x: 160, y: 400 },
-        { id: 'tpot',      label: `🍯 T-Pot\n${tpot}`,              x: 310, y: 400 },
-        { id: 'srv-db',    label: `🗄 srv-db\n${db}`,              x: 430, y: 400 },
+        { id: 'firewall',  label: `🛡 OPNsense\n${fw}`,            x: 300, y: 220 },
+        { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',             x: 60,  y: 340 },
+        { id: 'dmz',       label: '🔒 DMZ\n192.168.1.0/24',        x: 210, y: 340 },
+        { id: 'lan',       label: '🏠 LAN\n192.168.21.0/24',       x: 390, y: 340 },
+        { id: 'wireguard', label: '🔐 WireGuard\nVPN',             x: 540, y: 340 },
+        { id: 'srv-web',   label: `💻 srv-web\n${web}`,            x: 130, y: 460 },
+        { id: 'tpot',      label: `🍯 T-Pot\n${tpot}`,             x: 280, y: 460 },
+        { id: 'srv-db',    label: `🗄 srv-db\n${db}`,              x: 390, y: 460 },
+        { id: 'srv-app',   label: `⚙ srv-app\n${app}`,            x: 510, y: 460 },
       ],
       edges: [
         { id: 'e-atk-net',  source: 'attacker',  target: 'internet'  },
@@ -56,9 +58,10 @@
         { id: 'e-dmz-web',  source: 'dmz',       target: 'srv-web'   },
         { id: 'e-dmz-tpot', source: 'dmz',       target: 'tpot'      },
         { id: 'e-lan-db',   source: 'lan',       target: 'srv-db'    },
+        { id: 'e-lan-app',  source: 'lan',       target: 'srv-app'   },
       ],
       info: {
-        attacker:  { ip: '?', role: 'Dernière IP attaquante', service: 'T-Pot feed' },
+        attacker:  { ip: '?',  role: 'Dernière IP attaquante', service: 'T-Pot feed' },
         internet:  { ip: 'WAN', role: 'Périmètre réseau', service: 'Transit' },
         firewall:  { ip: fw,   role: 'Gateway / IDS', service: 'OPNsense 24.x' },
         crowdsec:  { ip: cs,   role: 'IDPS', service: 'CrowdSec LAPI' },
@@ -66,8 +69,9 @@
         lan:       { ip: '192.168.21.0/24', role: 'Réseau local', service: 'LAN interne' },
         wireguard: { ip: '10.0.0.1', role: 'VPN Gateway', service: 'WireGuard 1.0' },
         'srv-web': { ip: web,  role: 'Serveur web', service: 'Nginx 1.24' },
-        tpot:      { ip: '192.168.1.50', role: 'Honeypot T-Pot CE', service: 'Cowrie · Dionaea · …' },
+        tpot:      { ip: tpot, role: 'Honeypot T-Pot CE', service: 'Cowrie · Dionaea · …' },
         'srv-db':  { ip: db,   role: 'Base de données', service: 'PostgreSQL 16' },
+        'srv-app': { ip: app,  role: 'Serveur applicatif', service: '' },
       },
     }
   }
