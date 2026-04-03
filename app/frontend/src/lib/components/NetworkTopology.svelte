@@ -59,12 +59,30 @@
   let animPhase: AnimPhase = 'idle'
   let firewallPos: { x: number; y: number } | null = null
 
-  // ── Coordonnées du dot attaquant (assignations réactives directes) ──────────
-  $: attackerDotX = (live && attackerLat !== null && attackerLon !== null && mapEl)
-    ? (attackerLon + 180) / 360 * mapEl.offsetWidth
+  // ── Dimensions réactives de la carte monde ────────────────────────────────
+  // mapEl.offsetWidth/Height ne sont PAS des dépendances Svelte — on les stocke
+  // dans des variables réactives mises à jour par un ResizeObserver dédié.
+  let mapWidth = 0
+  let mapHeight = 0
+  let mapResizeObserver: ResizeObserver | null = null
+
+  $: if (mapEl) {
+    mapResizeObserver?.disconnect()
+    mapWidth = mapEl.offsetWidth
+    mapHeight = mapEl.offsetHeight
+    mapResizeObserver = new ResizeObserver(() => {
+      mapWidth = mapEl!.offsetWidth
+      mapHeight = mapEl!.offsetHeight
+    })
+    mapResizeObserver.observe(mapEl)
+  }
+
+  // ── Coordonnées du dot attaquant ──────────────────────────────────────────
+  $: attackerDotX = (live && attackerLat !== null && attackerLon !== null && mapWidth > 0)
+    ? (attackerLon + 180) / 360 * mapWidth
     : 0
-  $: attackerDotY = (live && attackerLat !== null && attackerLon !== null && mapEl)
-    ? (90 - attackerLat) / 180 * mapEl.offsetHeight
+  $: attackerDotY = (live && attackerLat !== null && attackerLon !== null && mapHeight > 0)
+    ? (90 - attackerLat) / 180 * mapHeight
     : 0
 
   // Arc cross-zone : dot → OPNsense (quadratic bézier latéral)
@@ -468,6 +486,7 @@
   onDestroy(() => {
     stopPulse()
     resizeObserver?.disconnect()
+    mapResizeObserver?.disconnect()
     unsubTopology()
     unsubAnim()
     unsubTpot()
