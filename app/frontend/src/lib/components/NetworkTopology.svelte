@@ -26,6 +26,8 @@
   let attackerLon: number | null = null
   let currentGeoIp = ''
   const geoCache = new Map<string, { lat: number; lon: number }>()
+  let liveTpotHit = false
+  let liveTpotTimeout: ReturnType<typeof setTimeout> | null = null
 
   async function lookupGeo(ip: string): Promise<{ lat: number; lon: number; country?: string; city?: string } | null> {
     if (geoCache.has(ip)) return geoCache.get(ip)!
@@ -383,11 +385,16 @@
     }
   })
 
-  // ── Mode live : géolocalisation de l'attaquant depuis le feed T-Pot ────────
+  // ── Mode live : géolocalisation + animation flèche à chaque hit T-Pot ───────
   const unsubTpot = tpotStore.subscribe(async state => {
     if (!live) return
     const lastIp = state.feed[0]?.src_ip
     if (!lastIp) return
+    // Déclencher la flèche pendant 3s à chaque nouveau hit
+    liveTpotHit = true
+    if (liveTpotTimeout) clearTimeout(liveTpotTimeout)
+    liveTpotTimeout = setTimeout(() => { liveTpotHit = false }, 3000)
+    // Géolocaliser la nouvelle IP si elle a changé
     if (lastIp !== currentGeoIp) {
       currentGeoIp = lastIp
       const geo = await lookupGeo(lastIp)
@@ -443,7 +450,7 @@
       <circle cx={dotX} cy={dotY} r="3"  fill={attackColor} />
 
       <!-- Flèche Bézier cross-zone vers OPNsense -->
-      {#if animPhase !== 'idle' && firewallPos}
+      {#if (animPhase !== 'idle' || liveTpotHit) && firewallPos}
         {@const fx = firewallPos.x}
         {@const fy = firewallPos.y}
         {@const midy = dotY + (fy - dotY) * 0.5}
@@ -455,7 +462,7 @@
         <path d={`M${dotX},${dotY} C${dotX},${midy} ${fx},${midy} ${fx},${fy}`}
           fill="none" stroke={attackColor} stroke-width="2.5"
           stroke-dasharray="12 8" stroke-linecap="round"
-          class={animPhase === 'attacking' ? 'anim-attack' : 'anim-defend'} />
+          class={animPhase === 'attacking' || liveTpotHit ? 'anim-attack' : 'anim-defend'} />
       {/if}
     {/if}
 
