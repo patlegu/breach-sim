@@ -63,6 +63,13 @@ resource "terraform_data" "cloudinit_hash" {
       gateway = local.gateway
     }),
   ]))
+
+  # T-Pot prend ~30 min à installer. On ignore les changements de hash
+  # pour éviter une recréation accidentelle en cas de dérive des variables.
+  # Pour forcer une recréation intentionnelle : tofu taint module.tpot.terraform_data.cloudinit_hash
+  lifecycle {
+    ignore_changes = [triggers_replace]
+  }
 }
 
 resource "libvirt_cloudinit_disk" "tpot" {
