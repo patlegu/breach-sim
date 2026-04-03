@@ -59,6 +59,42 @@
   let animPhase: AnimPhase = 'idle'
   let firewallPos: { x: number; y: number } | null = null
 
+  // ── Coordonnées du dot attaquant (script-level pour réactivité) ────────────
+  let attackerDotX = 0
+  let attackerDotY = 0
+  $: if (live && attackerLat !== null && attackerLon !== null && mapEl) {
+    attackerDotX = (attackerLon + 180) / 360 * mapEl.offsetWidth
+    attackerDotY = (90 - attackerLat) / 180 * mapEl.offsetHeight
+  }
+
+  // Arc cross-zone : dot → OPNsense (quadratic bézier latéral)
+  let firewallArcD = ''
+  $: firewallArcD = (() => {
+    if (!live || attackerLat === null || !firewallPos || !mapEl) return ''
+    const fx = firewallPos.x
+    const fy = firewallPos.y
+    const dist = Math.sqrt((fx - attackerDotX) ** 2 + (fy - attackerDotY) ** 2)
+    const bow = dist * 0.22
+    const cpX = (attackerDotX + fx) / 2 + (attackerDotX <= fx ? bow : -bow)
+    const cpY = (attackerDotY + fy) / 2
+    return `M${attackerDotX},${attackerDotY} Q${cpX},${cpY} ${fx},${fy}`
+  })()
+
+  // Chemin complet : arc cross-zone + suite Cytoscape fusionnés en un seul path
+  let combinedPath = ''
+  $: combinedPath = (() => {
+    if (!live) return attackPathD
+    if (!firewallArcD && !attackPathD) return ''
+    if (!firewallArcD) return attackPathD
+    if (!attackPathD) return firewallArcD
+    // Supprime le "M fw_x,fw_y " initial du chemin Cytoscape (déjà fin de l'arc)
+    const cytoPart = attackPathD.replace(/^M\s*[\d.]+,[\d.]+\s*/, '')
+    return `${firewallArcD} ${cytoPart}`
+  })()
+
+  // Chemin à afficher : combiné en live, Cytoscape seul en mode scénario
+  $: pathToShow = live ? combinedPath : attackPathD
+
   function getMapHeight(): number {
     return mapEl?.offsetHeight ?? 0
   }
@@ -458,48 +494,23 @@
     </defs>
 
     <!-- Dot attaquant géolocalisé sur la carte monde -->
-    {#if live && attackerLat !== null && attackerLon !== null && mapEl}
-      {@const dotX = (attackerLon + 180) / 360 * mapEl.offsetWidth}
-      {@const dotY = (90 - attackerLat) / 180 * mapEl.offsetHeight}
-      <circle cx={dotX} cy={dotY} r="16" fill={attackColor} fill-opacity="0.0" class="dot-pulse" style="--c: {attackColor}" />
-      <circle cx={dotX} cy={dotY} r="6"  fill={attackColor} fill-opacity="0.35" />
-      <circle cx={dotX} cy={dotY} r="3"  fill={attackColor} />
-
-      <!-- Label pays/ville (effacé entre attaques) -->
+    {#if live && attackerLat !== null && attackerLon !== null}
+      <circle cx={attackerDotX} cy={attackerDotY} r="16" fill={attackColor} fill-opacity="0.0" class="dot-pulse" style="--c: {attackColor}" />
+      <circle cx={attackerDotX} cy={attackerDotY} r="6"  fill={attackColor} fill-opacity="0.35" />
+      <circle cx={attackerDotX} cy={attackerDotY} r="3"  fill={attackColor} />
       {#if attackerGeoLabel && liveTpotHit}
-        <text x={dotX} y={dotY - 14} text-anchor="middle" font-size="10" font-family="monospace"
+        <text x={attackerDotX} y={attackerDotY - 14} text-anchor="middle" font-size="10" font-family="monospace"
           fill={attackColor} opacity="0.9" class="pointer-events-none">{attackerGeoLabel}</text>
-      {/if}
-
-      <!-- Trajectoire balistique vers OPNsense -->
-      {#if (animPhase !== 'idle' || liveTpotHit) && firewallPos}
-        {@const fx = firewallPos.x}
-        {@const fy = firewallPos.y}
-        {@const arcH = Math.max(Math.abs(fy - dotY) * 0.2, 30)}
-        {@const cpY  = Math.min(dotY, fy) - arcH}
-        {@const cp1X = dotX + (fx - dotX) * 0.25}
-        {@const cp2X = dotX + (fx - dotX) * 0.75}
-        {@const arc  = `M${dotX},${dotY} C${cp1X},${cpY} ${cp2X},${cpY} ${fx},${fy}`}
-        <g transition:fade={{ duration: 600 }}>
-          <!-- lueur statique (filigrane) -->
-          <path d={arc} fill="none" stroke={attackColor} stroke-width="14" stroke-opacity="0.06" stroke-linecap="round" />
-          <path d={arc} fill="none" stroke={attackColor} stroke-width="1.5" stroke-opacity="0.25" stroke-linecap="round" />
-          <!-- balle -->
-          <path d={arc} fill="none" stroke={attackColor} stroke-width="4" stroke-dasharray="60 2000" stroke-linecap="round" class="anim-bullet" />
-          <path d={arc} fill="none" stroke="white" stroke-width="1.5" stroke-dasharray="60 2000" stroke-linecap="round" stroke-opacity="0.7" class="anim-bullet" />
-        </g>
       {/if}
     {/if}
 
-    <!-- Flèche sur le graphe Cytoscape (même style bullet) -->
-    {#if attackPathD && (animPhase !== 'idle' || liveTpotHit)}
+    <!-- Trajectoire unifiée : carte monde → OPNsense → cible (chemin continu) -->
+    {#if pathToShow && (animPhase !== 'idle' || liveTpotHit)}
       <g transition:fade={{ duration: 600 }}>
-        <!-- filigrane statique -->
-        <path d={attackPathD} fill="none" stroke={attackColor} stroke-width="14" stroke-opacity="0.06" stroke-linecap="round" stroke-linejoin="round" />
-        <path d={attackPathD} fill="none" stroke={attackColor} stroke-width="1.5" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round" />
-        <!-- balle -->
-        <path d={attackPathD} fill="none" stroke={attackColor} stroke-width="4" stroke-dasharray="60 2000" stroke-linecap="round" stroke-linejoin="round" class="anim-bullet" />
-        <path d={attackPathD} fill="none" stroke="white" stroke-width="1.5" stroke-dasharray="60 2000" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.7" class="anim-bullet" />
+        <path d={pathToShow} fill="none" stroke={attackColor} stroke-width="14" stroke-opacity="0.06" stroke-linecap="round" stroke-linejoin="round" />
+        <path d={pathToShow} fill="none" stroke={attackColor} stroke-width="1.5" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round" />
+        <path d={pathToShow} fill="none" stroke={attackColor} stroke-width="4" stroke-dasharray="60 2000" stroke-linecap="round" stroke-linejoin="round" class="anim-bullet" />
+        <path d={pathToShow} fill="none" stroke="white" stroke-width="1.5" stroke-dasharray="60 2000" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.7" class="anim-bullet" />
       </g>
     {/if}
   </svg>
