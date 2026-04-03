@@ -4,6 +4,7 @@
   import { animStore, type AnimPhase } from '../stores/animStore'
   import { tpotStore } from '../stores/tpotStore'
   import cytoscape from 'cytoscape'
+  import worldMapUrl from '../../assets/world-110m.svg?url'
 
   export let attackerIp: string = '?'
   export let attackerRole: string = 'Attaquant externe'
@@ -12,6 +13,7 @@
   export let labConfig: Record<string, string> | null = null
 
   let container: HTMLDivElement
+  let mapEl: HTMLDivElement
   let cy: cytoscape.Core | null = null
   let pulseInterval: ReturnType<typeof setInterval> | null = null
   let tooltipVisible = false
@@ -19,6 +21,27 @@
   let tooltipX = 0
   let tooltipY = 0
 
+  // ── Géolocalisation attaquant ──────────────────────────────────────────────
+  let attackerLat: number | null = null
+  let attackerLon: number | null = null
+  let currentGeoIp = ''
+  const geoCache = new Map<string, { lat: number; lon: number }>()
+
+  async function lookupGeo(ip: string): Promise<{ lat: number; lon: number } | null> {
+    if (geoCache.has(ip)) return geoCache.get(ip)!
+    try {
+      const r = await fetch(`http://ip-api.com/json/${ip}?fields=status,lat,lon`)
+      const d = await r.json()
+      if (d.status === 'success') {
+        const geo = { lat: d.lat, lon: d.lon }
+        geoCache.set(ip, geo)
+        return geo
+      }
+    } catch { /* silencieux */ }
+    return null
+  }
+
+  // ── Couleurs par scénario ──────────────────────────────────────────────────
   const SCENARIO_COLORS: Record<string, string> = {
     ssh_brute_force: '#ef4444',
     log4shell:       '#f97316',
@@ -30,11 +53,23 @@
   let attackPathD = ''
   let attackColor = '#ef4444'
   let animPhase: AnimPhase = 'idle'
+  let firewallPos: { x: number; y: number } | null = null
+
+  function getMapHeight(): number {
+    return mapEl?.offsetHeight ?? 0
+  }
 
   function buildAttackPath(edgeIds: string[]): string {
     if (!cy || edgeIds.length === 0) return ''
+    // En mode live : les edges attaquant→internet et internet→firewall
+    // sont gérés par la flèche cross-zone depuis la carte monde
+    const filtered = live
+      ? edgeIds.filter(e => !['e-atk-net', 'e-net-fw'].includes(e))
+      : edgeIds
+    if (filtered.length === 0) return ''
+
     const nodeIds: string[] = []
-    for (const eid of edgeIds) {
+    for (const eid of filtered) {
       const edge = cy.$(`#${eid}`)
       if (!edge.length) continue
       const src = edge.source().id()
@@ -42,59 +77,96 @@
       if (nodeIds.length === 0) nodeIds.push(src)
       if (nodeIds[nodeIds.length - 1] !== tgt) nodeIds.push(tgt)
     }
+    const yOffset = getMapHeight()
     const points = nodeIds.map(id => {
       const pos = cy!.$(`#${id}`).renderedPosition()
-      return `${pos.x},${pos.y}`
+      return `${pos.x},${pos.y + yOffset}`
     })
     if (points.length < 2) return ''
     return 'M ' + points.join(' L ')
   }
 
+  function updateFirewallPos() {
+    if (!cy || !live) return
+    const fw = cy.$('#firewall')
+    if (fw.length) {
+      const rp = fw.renderedPosition()
+      firewallPos = { x: rp.x, y: rp.y + getMapHeight() }
+    }
+  }
+
+  // ── Couleurs nœuds Cytoscape ───────────────────────────────────────────────
   const NODE_COLORS: Record<NodeStatus, { bg: string; border: string }> = {
     normal:   { bg: '#27272a', border: '#52525b' },
     attacked: { bg: '#7f1d1d', border: '#ef4444' },
     defended: { bg: '#064e3b', border: '#10b981' },
   }
+  const NORMAL_EDGE   = { 'line-color': '#3f3f46', 'target-arrow-color': '#3f3f46', 'width': 2 }
+  const ATTACK_BRIGHT = { 'line-color': '#f97316', 'target-arrow-color': '#f97316', 'width': 3 }
+  const ATTACK_DIM    = { 'line-color': '#7c2d12', 'target-arrow-color': '#7c2d12', 'width': 2 }
+  const DEFEND_EDGE   = { 'line-color': '#10b981', 'target-arrow-color': '#10b981', 'width': 3 }
 
-  // ── Topologie live (KVM réel) ──────────────────────────────────────────────
+  let nodeInfo: Record<string, { ip: string; role: string; service: string }> = {}
 
-  function getLiveConfig(cfg: Record<string, string>) {
-    const fw   = cfg.opnsense_ip  ?? '192.168.1.1'
-    const cs   = cfg.crowdsec_ip  ?? '192.168.1.1'
-    const web  = cfg.srv_web_ip   ?? '192.168.1.10'
-    const db   = cfg.srv_db_ip    ?? '192.168.21.10'
-    const app  = cfg.infected_ip  ?? '192.168.21.20'
+  function stopPulse() {
+    if (pulseInterval !== null) { clearInterval(pulseInterval); pulseInterval = null }
+  }
+
+  function resetEdges(edges: { id: string }[]) {
+    if (!cy) return
+    edges.forEach(e => cy!.$(`#${e.id}`).style(NORMAL_EDGE))
+  }
+
+  function startPulse(edgeIds: string[]) {
+    stopPulse()
+    let bright = true
+    pulseInterval = setInterval(() => {
+      if (!cy) return
+      const style = bright ? ATTACK_BRIGHT : ATTACK_DIM
+      edgeIds.forEach(id => cy!.$(`#${id}`).style(style))
+      bright = !bright
+    }, 350)
+  }
+
+  function flashDefended(edgeIds: string[]) {
+    stopPulse()
+    if (!cy) return
+    edgeIds.forEach(id => cy!.$(`#${id}`).style(DEFEND_EDGE))
+    setTimeout(() => edgeIds.forEach(id => cy!.$(`#${id}`).style(NORMAL_EDGE)), 1500)
+  }
+
+  // ── Config Cytoscape mode live (sans attacker/internet) ───────────────────
+  function getLiveCytoscapeConfig(cfg: Record<string, string>) {
+    const fw   = cfg.opnsense_ip ?? '192.168.1.1'
+    const cs   = cfg.crowdsec_ip ?? '192.168.1.1'
+    const web  = cfg.srv_web_ip  ?? '192.168.1.10'
+    const db   = cfg.srv_db_ip   ?? '192.168.21.10'
+    const app  = cfg.infected_ip ?? '192.168.21.20'
     const tpot = cfg.tpot_ip !== '127.0.0.1' ? cfg.tpot_ip : '192.168.1.50'
     return {
       nodes: [
-        { id: 'attacker',  label: '🔴 Attaquant\n…',               x: 300, y: 50  },
-        { id: 'internet',  label: '🌐 Internet\nWAN',              x: 300, y: 170 },
-        { id: 'firewall',  label: `🛡 OPNsense\n${fw}`,            x: 300, y: 300 },
-        { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',             x: 50,  y: 430 },
-        { id: 'dmz',       label: '🔒 DMZ\n192.168.1.0/24',        x: 190, y: 430 },
-        { id: 'lan',       label: '🏠 LAN\n192.168.21.0/24',       x: 390, y: 430 },
-        { id: 'wireguard', label: '🔐 WireGuard\nVPN',             x: 545, y: 430 },
-        { id: 'srv-web',   label: `💻 srv-web\n${web}`,            x: 110, y: 560 },
-        { id: 'tpot',      label: `🍯 T-Pot\n${tpot}`,             x: 265, y: 560 },
-        { id: 'srv-db',    label: `🗄 srv-db\n${db}`,              x: 390, y: 560 },
-        { id: 'srv-app',   label: `⚙ srv-app\n${app}`,            x: 510, y: 560 },
+        { id: 'firewall',  label: `🛡 OPNsense\n${fw}`,       x: 300, y: 60  },
+        { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',        x: 50,  y: 190 },
+        { id: 'dmz',       label: '🔒 DMZ\n192.168.1.0/24',   x: 190, y: 190 },
+        { id: 'lan',       label: '🏠 LAN\n192.168.21.0/24',  x: 390, y: 190 },
+        { id: 'wireguard', label: '🔐 WireGuard\nVPN',        x: 545, y: 190 },
+        { id: 'srv-web',   label: `💻 srv-web\n${web}`,       x: 110, y: 320 },
+        { id: 'tpot',      label: `🍯 T-Pot\n${tpot}`,        x: 265, y: 320 },
+        { id: 'srv-db',    label: `🗄 srv-db\n${db}`,         x: 390, y: 320 },
+        { id: 'srv-app',   label: `⚙ srv-app\n${app}`,       x: 510, y: 320 },
       ],
       edges: [
-        { id: 'e-atk-net',  source: 'attacker',  target: 'internet'  },
-        { id: 'e-net-fw',   source: 'internet',  target: 'firewall'  },
-        { id: 'e-fw-cs',    source: 'firewall',  target: 'crowdsec'  },
-        { id: 'e-fw-dmz',   source: 'firewall',  target: 'dmz'       },
-        { id: 'e-fw-lan',   source: 'firewall',  target: 'lan'       },
-        { id: 'e-fw-wg',    source: 'firewall',  target: 'wireguard' },
-        { id: 'e-dmz-web',  source: 'dmz',       target: 'srv-web'   },
-        { id: 'e-dmz-tpot', source: 'dmz',       target: 'tpot'      },
-        { id: 'e-lan-db',   source: 'lan',       target: 'srv-db'    },
-        { id: 'e-lan-app',  source: 'lan',       target: 'srv-app'   },
+        { id: 'e-fw-cs',    source: 'firewall', target: 'crowdsec'  },
+        { id: 'e-fw-dmz',   source: 'firewall', target: 'dmz'       },
+        { id: 'e-fw-lan',   source: 'firewall', target: 'lan'       },
+        { id: 'e-fw-wg',    source: 'firewall', target: 'wireguard' },
+        { id: 'e-dmz-web',  source: 'dmz',      target: 'srv-web'   },
+        { id: 'e-dmz-tpot', source: 'dmz',      target: 'tpot'      },
+        { id: 'e-lan-db',   source: 'lan',      target: 'srv-db'    },
+        { id: 'e-lan-app',  source: 'lan',      target: 'srv-app'   },
       ],
       info: {
-        attacker:  { ip: '?',  role: 'Dernière IP attaquante', service: 'T-Pot feed' },
-        internet:  { ip: 'WAN', role: 'Périmètre réseau', service: 'Transit' },
-        firewall:  { ip: fw,   role: 'Gateway / IDS', service: 'OPNsense 24.x' },
+        firewall:  { ip: fw,   role: 'Gateway / IDS', service: 'OPNsense 25.x' },
         crowdsec:  { ip: cs,   role: 'IDPS', service: 'CrowdSec LAPI' },
         dmz:       { ip: '192.168.1.0/24', role: 'Zone démilitarisée', service: 'Réseau isolé' },
         lan:       { ip: '192.168.21.0/24', role: 'Réseau local', service: 'LAN interne' },
@@ -107,8 +179,7 @@
     }
   }
 
-  // ── Configurations topologie par scénario ──────────────────────────────────
-
+  // ── Configs topologie démo par scénario ────────────────────────────────────
   function getConfig(sid: string, ip: string) {
     if (sid === 'ransomware_c2') {
       return {
@@ -126,16 +197,16 @@
           { id: 'infected',  label: `👤 192.168.2.15\nPoste infecté`, x: 520, y: 470 },
         ],
         edges: [
-          { id: 'e-atk-net',  source: 'internet',  target: 'attacker'  }, // sortant vers C2
-          { id: 'e-net-fw',   source: 'firewall',  target: 'internet'  }, // sortant
+          { id: 'e-atk-net',  source: 'internet',  target: 'attacker'  },
+          { id: 'e-net-fw',   source: 'firewall',  target: 'internet'  },
           { id: 'e-fw-cs',    source: 'firewall',  target: 'crowdsec'  },
           { id: 'e-fw-wg',    source: 'firewall',  target: 'wireguard' },
           { id: 'e-fw-dmz',   source: 'firewall',  target: 'dmz'       },
-          { id: 'e-fw-lan',   source: 'lan',       target: 'firewall'  }, // sortant
+          { id: 'e-fw-lan',   source: 'lan',       target: 'firewall'  },
           { id: 'e-dmz-web',  source: 'dmz',       target: 'srv-web'   },
           { id: 'e-dmz-db',   source: 'dmz',       target: 'srv-db'    },
           { id: 'e-dmz-tpot', source: 'dmz',       target: 'tpot'      },
-          { id: 'e-lan-inf',  source: 'infected',  target: 'lan'       }, // sortant du poste
+          { id: 'e-lan-inf',  source: 'infected',  target: 'lan'       },
           { id: 'e-inf-wg',   source: 'infected',  target: 'wireguard' },
         ],
         hiddenEdges: ['e-inf-wg'],
@@ -154,8 +225,6 @@
         },
       }
     }
-
-    // Topologie standard (SSH, Log4Shell, DDoS)
     return {
       nodes: [
         { id: 'attacker',  label: `🔴 Attaquant\n${ip}`,        x: 300, y: 35  },
@@ -192,47 +261,13 @@
     }
   }
 
-  // ── Styles edges ───────────────────────────────────────────────────────────
-  const NORMAL_EDGE  = { 'line-color': '#3f3f46', 'target-arrow-color': '#3f3f46', 'width': 2 }
-  const ATTACK_BRIGHT = { 'line-color': '#f97316', 'target-arrow-color': '#f97316', 'width': 3 }
-  const ATTACK_DIM    = { 'line-color': '#7c2d12', 'target-arrow-color': '#7c2d12', 'width': 2 }
-  const DEFEND_EDGE   = { 'line-color': '#10b981', 'target-arrow-color': '#10b981', 'width': 3 }
-
-  let nodeInfo: Record<string, { ip: string; role: string; service: string }> = {}
-
-  function stopPulse() {
-    if (pulseInterval !== null) { clearInterval(pulseInterval); pulseInterval = null }
-  }
-
-  function resetEdges(edges: { id: string }[]) {
-    if (!cy) return
-    edges.forEach(e => cy!.$(`#${e.id}`).style(NORMAL_EDGE))
-  }
-
-  function startPulse(edgeIds: string[]) {
-    stopPulse()
-    let bright = true
-    pulseInterval = setInterval(() => {
-      if (!cy) return
-      const style = bright ? ATTACK_BRIGHT : ATTACK_DIM
-      edgeIds.forEach(id => cy!.$(`#${id}`).style(style))
-      bright = !bright
-    }, 350)
-  }
-
-  function flashDefended(edgeIds: string[]) {
-    stopPulse()
-    if (!cy) return
-    edgeIds.forEach(id => cy!.$(`#${id}`).style(DEFEND_EDGE))
-    setTimeout(() => edgeIds.forEach(id => cy!.$(`#${id}`).style(NORMAL_EDGE)), 1500)
-  }
-
   // ── Construire / reconstruire Cytoscape ────────────────────────────────────
   function buildCy(sid: string, ip: string) {
     stopPulse()
     if (cy) { cy.destroy(); cy = null }
+    firewallPos = null
 
-    const cfg = live && labConfig ? getLiveConfig(labConfig) : getConfig(sid, ip)
+    const cfg = live && labConfig ? getLiveCytoscapeConfig(labConfig) : getConfig(sid, ip)
     nodeInfo = cfg.info as typeof nodeInfo
 
     cy = cytoscape({
@@ -277,29 +312,30 @@
 
     cy.fit(cy.nodes(), 20)
 
-    // Cacher les edges masqués par défaut pour ce scénario
     if ('hiddenEdges' in cfg) {
       (cfg as any).hiddenEdges.forEach((id: string) => cy!.$(`#${id}`).style('display', 'none'))
     }
 
-    // Tooltips
     cy.on('mouseover', 'node', (e) => {
       const id = e.target.id()
       const info = nodeInfo[id]
       if (!info) return
       const pos = e.target.renderedBoundingBox()
+      const yOffset = getMapHeight()
       tooltipX = (pos.x1 + pos.x2) / 2
-      tooltipY = pos.y1 - 8
+      tooltipY = pos.y1 - 8 + yOffset
       tooltipText = `${info.ip} · ${info.role}${info.service ? '\n' + info.service : ''}`
       tooltipVisible = true
     })
     cy.on('mouseout', 'node', () => { tooltipVisible = false })
+
+    // Position initiale du nœud firewall pour la flèche cross-zone
+    setTimeout(updateFirewallPos, 100)
   }
 
-  // Reconstruire quand le scénario/IP change, ou quand labConfig arrive en mode live
   $: if (container && (scenarioId || live)) buildCy(scenarioId, attackerIp)
 
-  // Réagir aux changements de couleur de nœuds + edge overrides
+  // ── Réagir aux états nœuds ─────────────────────────────────────────────────
   const unsubTopology = topologyStore.subscribe(state => {
     if (!cy) return
     for (const [nodeId, status] of Object.entries(state.nodes)) {
@@ -316,10 +352,10 @@
     }
   })
 
-  // Réagir aux animations
+  // ── Réagir aux animations ──────────────────────────────────────────────────
   const unsubAnim = animStore.subscribe(state => {
     animPhase = state.phase
-    const cfg = live && labConfig ? getLiveConfig(labConfig) : getConfig(scenarioId, attackerIp)
+    const cfg = live && labConfig ? getLiveCytoscapeConfig(labConfig) : getConfig(scenarioId, attackerIp)
     if (state.phase === 'idle') {
       if (cy) resetEdges(cfg.edges)
       attackPathD = ''
@@ -329,6 +365,7 @@
     attackColor = state.phase === 'defended'
       ? DEFEND_COLOR
       : (SCENARIO_COLORS[scenarioId] ?? '#ef4444')
+    updateFirewallPos()
     if (cy) attackPathD = buildAttackPath(edges)
     if (state.phase === 'attacking') {
       if (cy) startPulse(edges)
@@ -338,15 +375,15 @@
     }
   })
 
-  // En mode live : mettre à jour le label du nœud attaquant avec la dernière IP T-Pot
-  const unsubTpot = tpotStore.subscribe(state => {
-    if (!cy || !live) return
+  // ── Mode live : géolocalisation de l'attaquant depuis le feed T-Pot ────────
+  const unsubTpot = tpotStore.subscribe(async state => {
+    if (!live) return
     const lastIp = state.feed[0]?.src_ip
     if (!lastIp) return
-    const node = cy.$('#attacker')
-    if (node.length) {
-      node.data('label', `🔴 Attaquant\n${lastIp}`)
-      nodeInfo['attacker'] = { ip: lastIp, role: 'Dernière IP attaquante', service: 'T-Pot feed' }
+    if (lastIp !== currentGeoIp) {
+      currentGeoIp = lastIp
+      const geo = await lookupGeo(lastIp)
+      if (geo) { attackerLat = geo.lat; attackerLon = geo.lon }
     }
   })
 
@@ -363,22 +400,62 @@
   })
 </script>
 
-<div class="relative w-full h-full">
-  <div bind:this={container} class="w-full h-full rounded-lg bg-zinc-900" />
+<div class="relative w-full h-full flex flex-col">
 
-  <!-- SVG overlay : flèche d'attaque animée -->
+  <!-- Carte monde (mode live uniquement) -->
+  {#if live}
+    <div bind:this={mapEl} class="flex-[3] min-h-0 overflow-hidden relative border-b border-zinc-700">
+      <img src={worldMapUrl} alt="world map" class="w-full h-full" style="object-fit: fill; display: block;" />
+      <!-- Label -->
+      <span class="absolute top-1.5 left-2 text-xs text-zinc-500 font-mono pointer-events-none">
+        origine attaquant
+      </span>
+    </div>
+  {/if}
+
+  <!-- Canvas Cytoscape -->
+  <div class={live ? 'flex-[7] min-h-0' : 'flex-1 min-h-0'}>
+    <div bind:this={container} class="w-full h-full rounded-b-lg bg-zinc-900" />
+  </div>
+
+  <!-- SVG overlay pleine hauteur -->
   <svg class="absolute inset-0 w-full h-full pointer-events-none">
     <defs>
       <marker id="atk-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
         <polygon points="0 0, 8 3, 0 6" style="fill: {attackColor}" />
       </marker>
     </defs>
+
+    <!-- Dot attaquant géolocalisé sur la carte monde -->
+    {#if live && attackerLat !== null && attackerLon !== null && mapEl}
+      {@const dotX = (attackerLon + 180) / 360 * mapEl.offsetWidth}
+      {@const dotY = (90 - attackerLat) / 180 * mapEl.offsetHeight}
+      <circle cx={dotX} cy={dotY} r="16" fill={attackColor} fill-opacity="0.0" class="dot-pulse" style="--c: {attackColor}" />
+      <circle cx={dotX} cy={dotY} r="6"  fill={attackColor} fill-opacity="0.35" />
+      <circle cx={dotX} cy={dotY} r="3"  fill={attackColor} />
+
+      <!-- Flèche Bézier cross-zone vers OPNsense -->
+      {#if animPhase !== 'idle' && firewallPos}
+        {@const fx = firewallPos.x}
+        {@const fy = firewallPos.y}
+        {@const midy = dotY + (fy - dotY) * 0.5}
+        <!-- halo -->
+        <path d={`M${dotX},${dotY} C${dotX},${midy} ${fx},${midy} ${fx},${fy}`}
+          fill="none" stroke={attackColor} stroke-width="10" stroke-opacity="0.1"
+          stroke-linecap="round" />
+        <!-- trait animé -->
+        <path d={`M${dotX},${dotY} C${dotX},${midy} ${fx},${midy} ${fx},${fy}`}
+          fill="none" stroke={attackColor} stroke-width="2.5"
+          stroke-dasharray="12 8" stroke-linecap="round"
+          class={animPhase === 'attacking' ? 'anim-attack' : 'anim-defend'} />
+      {/if}
+    {/if}
+
+    <!-- Flèche sur le graphe Cytoscape -->
     {#if attackPathD && animPhase !== 'idle'}
-      <!-- halo -->
       <path d={attackPathD} fill="none"
         stroke={attackColor} stroke-width="10" stroke-opacity="0.12"
         stroke-linecap="round" stroke-linejoin="round" />
-      <!-- trait animé -->
       <path d={attackPathD} fill="none"
         stroke={attackColor} stroke-width="2.5"
         stroke-dasharray="12 8" stroke-linecap="round" stroke-linejoin="round"
@@ -387,6 +464,7 @@
     {/if}
   </svg>
 
+  <!-- Tooltip nœud -->
   {#if tooltipVisible}
     <div
       class="absolute z-10 pointer-events-none px-2 py-1.5 rounded bg-zinc-800 border border-zinc-600 text-xs font-mono text-zinc-200 whitespace-pre shadow-lg"
@@ -403,4 +481,15 @@
   }
   .anim-attack { animation: flow-dash 0.45s linear infinite; }
   .anim-defend { animation: flow-dash 0.7s linear infinite; }
+
+  @keyframes dot-pulse {
+    0%   { r: 8;  opacity: 0.5; }
+    100% { r: 26; opacity: 0; }
+  }
+  .dot-pulse {
+    fill: var(--c);
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: dot-pulse 1.8s ease-out infinite;
+  }
 </style>
