@@ -415,7 +415,7 @@
 
   <!-- Canvas Cytoscape -->
   <div class={live ? 'flex-[7] min-h-0' : 'flex-1 min-h-0'}>
-    <div bind:this={container} class="w-full h-full rounded-b-lg bg-zinc-900" />
+    <div bind:this={container} class="w-full h-full rounded-b-lg" style="background: #0c1220;" />
   </div>
 
   <!-- SVG overlay pleine hauteur -->
