@@ -231,7 +231,7 @@
     <div class="w-2/5 border-r border-zinc-800 flex flex-col overflow-hidden">
 
       <!-- Topologie (75% de la hauteur) -->
-      <div class="flex-[3] min-h-0 p-3 border-b border-zinc-800">
+      <div class="flex-[3] min-h-0 overflow-hidden p-3 border-b border-zinc-800">
         <p class="text-xs text-zinc-500 uppercase tracking-wider mb-2">Topologie réseau</p>
         <div class="h-[calc(100%-1.25rem)]">
           <NetworkTopology
@@ -243,7 +243,7 @@
       </div>
 
       <!-- T-Pot widget -->
-      <div class="px-4 py-3 border-b border-zinc-800">
+      <div class="shrink-0 px-4 py-3 border-b border-zinc-800">
         <TpotWidget counts={$tpotStore.counts} feed={$tpotStore.feed} tpotIp={labConfig?.tpot_ip ?? ''} />
       </div>
 
