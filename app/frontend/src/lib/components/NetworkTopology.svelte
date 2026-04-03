@@ -24,8 +24,9 @@
   // ── Géolocalisation attaquant ──────────────────────────────────────────────
   let attackerLat: number | null = null
   let attackerLon: number | null = null
+  let attackerGeoLabel = ''
   let currentGeoIp = ''
-  const geoCache = new Map<string, { lat: number; lon: number }>()
+  const geoCache = new Map<string, { lat: number; lon: number; country?: string; city?: string }>()
   let liveTpotHit = false
   let liveTpotTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -392,13 +393,27 @@
     if (!lastIp) return
     // Déclencher la flèche pendant 3s à chaque nouveau hit
     liveTpotHit = true
+    attackColor = '#ef4444'
     if (liveTpotTimeout) clearTimeout(liveTpotTimeout)
-    liveTpotTimeout = setTimeout(() => { liveTpotHit = false }, 3000)
+    liveTpotTimeout = setTimeout(() => {
+      liveTpotHit = false
+      attackerGeoLabel = ''
+      if (animPhase === 'idle') attackPathD = ''
+    }, 3000)
+    // Construire le chemin fw→dmz→tpot si aucun scénario en cours
+    if (animPhase === 'idle') {
+      updateFirewallPos()
+      attackPathD = buildAttackPath(['e-fw-dmz', 'e-dmz-tpot'])
+    }
     // Géolocaliser la nouvelle IP si elle a changé
     if (lastIp !== currentGeoIp) {
       currentGeoIp = lastIp
       const geo = await lookupGeo(lastIp)
-      if (geo) { attackerLat = geo.lat; attackerLon = geo.lon }
+      if (geo) {
+        attackerLat = geo.lat
+        attackerLon = geo.lon
+        attackerGeoLabel = [geo.city, geo.country].filter(Boolean).join(' · ')
+      }
     }
   })
 
@@ -449,25 +464,29 @@
       <circle cx={dotX} cy={dotY} r="6"  fill={attackColor} fill-opacity="0.35" />
       <circle cx={dotX} cy={dotY} r="3"  fill={attackColor} />
 
-      <!-- Flèche Bézier cross-zone vers OPNsense -->
+      <!-- Label pays/ville (effacé entre attaques) -->
+      {#if attackerGeoLabel && liveTpotHit}
+        <text x={dotX} y={dotY - 14} text-anchor="middle" font-size="10" font-family="monospace"
+          fill={attackColor} opacity="0.9" class="pointer-events-none">{attackerGeoLabel}</text>
+      {/if}
+
+      <!-- Flèche Fortinet-style cross-zone vers OPNsense -->
       {#if (animPhase !== 'idle' || liveTpotHit) && firewallPos}
         {@const fx = firewallPos.x}
         {@const fy = firewallPos.y}
-        {@const midy = dotY + (fy - dotY) * 0.5}
+        {@const arc = `M${dotX},${dotY} Q${fx},${dotY} ${fx},${fy}`}
         <!-- halo -->
-        <path d={`M${dotX},${dotY} C${dotX},${midy} ${fx},${midy} ${fx},${fy}`}
-          fill="none" stroke={attackColor} stroke-width="10" stroke-opacity="0.1"
+        <path d={arc} fill="none" stroke={attackColor} stroke-width="10" stroke-opacity="0.1"
           stroke-linecap="round" />
         <!-- trait animé -->
-        <path d={`M${dotX},${dotY} C${dotX},${midy} ${fx},${midy} ${fx},${fy}`}
-          fill="none" stroke={attackColor} stroke-width="2.5"
+        <path d={arc} fill="none" stroke={attackColor} stroke-width="2.5"
           stroke-dasharray="12 8" stroke-linecap="round"
           class={animPhase === 'attacking' || liveTpotHit ? 'anim-attack' : 'anim-defend'} />
       {/if}
     {/if}
 
     <!-- Flèche sur le graphe Cytoscape -->
-    {#if attackPathD && animPhase !== 'idle'}
+    {#if attackPathD && (animPhase !== 'idle' || liveTpotHit)}
       <path d={attackPathD} fill="none"
         stroke={attackColor} stroke-width="10" stroke-opacity="0.12"
         stroke-linecap="round" stroke-linejoin="round" />
@@ -475,7 +494,7 @@
         stroke={attackColor} stroke-width="2.5"
         stroke-dasharray="12 8" stroke-linecap="round" stroke-linejoin="round"
         marker-end="url(#atk-arrow)"
-        class={animPhase === 'attacking' ? 'anim-attack' : 'anim-defend'} />
+        class={animPhase === 'attacking' || liveTpotHit ? 'anim-attack' : 'anim-defend'} />
     {/if}
   </svg>
 
