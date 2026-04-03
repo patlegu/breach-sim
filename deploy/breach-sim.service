@@ -16,6 +16,7 @@ ExecStart=/srv/breach-sim/.venv/bin/uvicorn backend.main:app \
 
 Environment=ONNX_DIR=/srv/breach-sim/onnx
 Environment=PORT=8888
+EnvironmentFile=/srv/breach-sim/.env
 
 Restart=on-failure
 RestartSec=10
