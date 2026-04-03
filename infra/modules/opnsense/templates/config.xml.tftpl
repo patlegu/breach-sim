@@ -351,7 +351,17 @@
   </snmpd>
   <nat>
     <outbound>
-      <mode>automatic</mode>
+      <mode>hybrid</mode>
+      <!-- No SNAT vers T-Pot : préserver l'IP source réelle de l'attaquant -->
+      <rule>
+        <interface>opt1</interface>
+        <source><any/></source>
+        <destination>
+          <address>${tpot_ip}</address>
+        </destination>
+        <nonat/>
+        <descr>No SNAT T-Pot - preserve attacker src IP</descr>
+      </rule>
     </outbound>
 %{ for port in tpot_ports ~}
     <rule>
