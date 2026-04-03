@@ -37,7 +37,8 @@
           { id: 'lan',       label: '🏠 LAN\n192.168.2.0/24',         x: 390, y: 370 },
           { id: 'srv-web',   label: '💻 srv-web',                     x: 120, y: 470 },
           { id: 'srv-db',    label: '🗄 srv-db',                      x: 270, y: 470 },
-          { id: 'infected',  label: `👤 192.168.2.15\nPoste infecté`, x: 390, y: 470 },
+          { id: 'tpot',      label: '🍯 T-Pot\n192.168.1.50',         x: 390, y: 470 },
+          { id: 'infected',  label: `👤 192.168.2.15\nPoste infecté`, x: 520, y: 470 },
         ],
         edges: [
           { id: 'e-atk-net',  source: 'internet',  target: 'attacker'  }, // sortant vers C2
@@ -48,6 +49,7 @@
           { id: 'e-fw-lan',   source: 'lan',       target: 'firewall'  }, // sortant
           { id: 'e-dmz-web',  source: 'dmz',       target: 'srv-web'   },
           { id: 'e-dmz-db',   source: 'dmz',       target: 'srv-db'    },
+          { id: 'e-dmz-tpot', source: 'dmz',       target: 'tpot'      },
           { id: 'e-lan-inf',  source: 'infected',  target: 'lan'       }, // sortant du poste
           { id: 'e-inf-wg',   source: 'infected',  target: 'wireguard' },
         ],
@@ -62,6 +64,7 @@
           lan:       { ip: '192.168.2.0/24', role: 'Réseau local', service: 'LAN interne' },
           'srv-web': { ip: '192.168.2.10', role: 'Serveur web', service: 'Nginx 1.24' },
           'srv-db':  { ip: '192.168.2.20', role: 'Base de données', service: 'PostgreSQL 16' },
+          tpot:      { ip: '192.168.1.50', role: 'Honeypot T-Pot CE', service: 'Cowrie · Dionaea · …' },
           infected:  { ip: '192.168.2.15', role: 'Poste compromis', service: 'Ransomware beacon' },
         },
       }
@@ -76,17 +79,19 @@
         { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',           x: 110, y: 370 },
         { id: 'wireguard', label: '🔐 WireGuard\nVPN',           x: 490, y: 370 },
         { id: 'dmz',       label: '🔒 DMZ',                      x: 300, y: 370 },
-        { id: 'srv-web',   label: '💻 srv-web',                  x: 210, y: 470 },
-        { id: 'srv-db',    label: '🗄 srv-db',                   x: 390, y: 470 },
+        { id: 'srv-web',   label: '💻 srv-web',                  x: 180, y: 470 },
+        { id: 'srv-db',    label: '🗄 srv-db',                   x: 300, y: 470 },
+        { id: 'tpot',      label: '🍯 T-Pot\n192.168.1.50',      x: 420, y: 470 },
       ],
       edges: [
-        { id: 'e-atk-net', source: 'attacker',  target: 'internet'  },
-        { id: 'e-net-fw',  source: 'internet',  target: 'firewall'  },
-        { id: 'e-fw-cs',   source: 'firewall',  target: 'crowdsec'  },
-        { id: 'e-fw-wg',   source: 'firewall',  target: 'wireguard' },
-        { id: 'e-fw-dmz',  source: 'firewall',  target: 'dmz'       },
-        { id: 'e-dmz-web', source: 'dmz',       target: 'srv-web'   },
-        { id: 'e-dmz-db',  source: 'dmz',       target: 'srv-db'    },
+        { id: 'e-atk-net',  source: 'attacker',  target: 'internet'  },
+        { id: 'e-net-fw',   source: 'internet',  target: 'firewall'  },
+        { id: 'e-fw-cs',    source: 'firewall',  target: 'crowdsec'  },
+        { id: 'e-fw-wg',    source: 'firewall',  target: 'wireguard' },
+        { id: 'e-fw-dmz',   source: 'firewall',  target: 'dmz'       },
+        { id: 'e-dmz-web',  source: 'dmz',       target: 'srv-web'   },
+        { id: 'e-dmz-db',   source: 'dmz',       target: 'srv-db'    },
+        { id: 'e-dmz-tpot', source: 'dmz',       target: 'tpot'      },
       ],
       info: {
         attacker:  { ip, role: attackerRole, service: '' },
@@ -97,6 +102,7 @@
         dmz:       { ip: '192.168.2.0/24', role: 'Zone démilitarisée', service: 'Réseau isolé' },
         'srv-web': { ip: '192.168.2.10', role: 'Serveur web', service: 'Nginx 1.24' },
         'srv-db':  { ip: '192.168.2.20', role: 'Base de données', service: 'PostgreSQL 16' },
+        tpot:      { ip: '192.168.1.50', role: 'Honeypot T-Pot CE', service: 'Cowrie · Dionaea · …' },
       },
     }
   }

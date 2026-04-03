@@ -24,6 +24,7 @@ const INITIAL: TopologyState = {
     infected:  'normal',
     'srv-web': 'normal',
     'srv-db':  'normal',
+    tpot:      'normal',
   },
   edgeOverrides: {},
 }
@@ -42,6 +43,8 @@ const EVENT_MAP: Record<string, EventEffect> = {
     nodes: { wireguard: 'defended' },
     edgeOverrides: { 'e-lan-inf': 'hidden', 'e-inf-wg': 'visible' },
   },
+  // T-Pot live hits
+  tpot_hit: { nodes: { tpot: 'attacked' } },
 }
 
 function createTopologyStore() {
@@ -55,6 +58,12 @@ function createTopologyStore() {
       update(s => ({
         nodes: { ...s.nodes, ...(effect.nodes ?? {}) } as Record<string, NodeStatus>,
         edgeOverrides: { ...s.edgeOverrides, ...(effect.edgeOverrides ?? {}) },
+      }))
+    },
+    resetNode(nodeId: string) {
+      update(s => ({
+        ...s,
+        nodes: { ...s.nodes, [nodeId]: 'normal' as NodeStatus },
       }))
     },
     reset() {

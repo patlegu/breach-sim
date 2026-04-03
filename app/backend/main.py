@@ -31,6 +31,7 @@ from .onnx_runner import OnnxRunner
 from .scenario import SCENARIOS, SCENARIO_ORDER
 from .lab import lab as _lab
 from .executor import execute_tool_call, trigger_attack
+from .tpot_collector import TpotCollector
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(levelname)s — %(message)s")
 logger = logging.getLogger(__name__)
@@ -43,6 +44,9 @@ _scenario_running = False
 _stop_event = asyncio.Event()
 _current_scenario_id: str | None = None
 
+_TPOT_POLL_INTERVAL = 3  # secondes
+_tpot = TpotCollector()
+
 _MODEL_INFO = {
     "opnsense":  {"name": "Qwen2.5-3B + OPNsense LoRA",  "precision": "int4", "repo": "patlegu/opnsense-qwen25-onnx-int4"},
     "wireguard": {"name": "Qwen2.5-3B + WireGuard LoRA", "precision": "int4", "repo": "patlegu/wireguard-qwen25-onnx-int4"},
@@ -52,11 +56,28 @@ _MODEL_INFO = {
 _ALL_AGENTS = ("opnsense", "wireguard", "crowdsec")
 
 
+async def _tpot_poll_task() -> None:
+    """Poll T-Pot Elasticsearch toutes les 3s — broadcast événements individuels + compteurs."""
+    await asyncio.sleep(5)  # laisser le temps au backend de démarrer
+    while True:
+        if _lab.tpot_ip:
+            events = await _tpot.fetch_new_events(_lab)
+            if events:
+                # Broadcast chaque événement individuellement
+                for ev in events:
+                    await _broadcast({"type": "tpot_event", **ev})
+                # Puis les compteurs mis à jour
+                await _broadcast({"type": "tpot_counts", "containers": _tpot.counts})
+        await asyncio.sleep(_TPOT_POLL_INTERVAL)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Chargement des modèles ONNX depuis %s...", ONNX_DIR)
     await runner.load_all(ONNX_DIR)
+    poll_task = asyncio.create_task(_tpot_poll_task())
     yield
+    poll_task.cancel()
     runner._executor.shutdown(wait=False)
 
 
@@ -206,7 +227,14 @@ async def get_lab():
         "srv_db_ip": _lab.srv_db_ip,
         "k3s_cp_ip": _lab.k3s_cp_ip if _lab.lab_type == "k8s" else None,
         "crowdsec_ip": _lab.crowdsec_ip,
+        "tpot_ip": _lab.tpot_ip,
     }
+
+
+@app.get("/api/tpot/top")
+async def tpot_top():
+    """Compteurs T-Pot en mémoire (cumulés depuis le démarrage)."""
+    return {"containers": _tpot.counts}
 
 
 @app.get("/api/health")

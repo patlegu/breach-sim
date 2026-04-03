@@ -3,6 +3,7 @@
   import NetworkTopology from './lib/components/NetworkTopology.svelte'
   import StepCard from './lib/components/StepCard.svelte'
   import ScenarioSelector from './lib/components/ScenarioSelector.svelte'
+  import TpotWidget from './lib/components/TpotWidget.svelte'
   import { scenarioStore } from './lib/stores/scenarioStore'
   import { topologyStore } from './lib/stores/topologyStore'
   import { animStore } from './lib/stores/animStore'
@@ -11,6 +12,8 @@
     fetchScenarios, fetchScenario,
     type ScenarioMeta, type ScenarioDetail, type ScenarioStep, type LabConfig,
   } from './lib/utils/demoApi'
+
+  import { tpotStore } from './lib/stores/tpotStore'
 
   // ── État modèles ──────────────────────────────────────────────────────────
   let ready = false
@@ -232,6 +235,11 @@
         <div class="h-[calc(100%-1.25rem)]">
           <NetworkTopology {attackerIp} {attackerRole} scenarioId={selectedId ?? ''} />
         </div>
+      </div>
+
+      <!-- T-Pot widget -->
+      <div class="px-4 py-3 border-b border-zinc-800">
+        <TpotWidget counts={$tpotStore.counts} feed={$tpotStore.feed} tpotIp={labConfig?.tpot_ip ?? ''} />
       </div>
 
       <!-- Sélecteur de scénario (25% restant) -->

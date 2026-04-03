@@ -1,6 +1,7 @@
 import { scenarioStore } from '../stores/scenarioStore'
 import { topologyStore } from '../stores/topologyStore'
 import { animStore } from '../stores/animStore'
+import { tpotStore } from '../stores/tpotStore'
 
 let _es: EventSource | null = null
 
@@ -42,6 +43,19 @@ export function connectDemoSSE(): () => void {
         case 'scenario_error':
           scenarioStore.setError(event.message)
           animStore.reset()
+          break
+        case 'tpot_event':
+          tpotStore.addEvent({
+            ts: event.ts,
+            honeypot: event.honeypot,
+            src_ip: event.src_ip,
+            port: event.port,
+          })
+          topologyStore.applyEvent('tpot_hit')
+          setTimeout(() => topologyStore.resetNode('tpot'), 2000)
+          break
+        case 'tpot_counts':
+          tpotStore.setCounts(event.containers ?? [])
           break
         case 'ping':
           break
@@ -121,6 +135,7 @@ export interface LabConfig {
   srv_db_ip: string
   k3s_cp_ip: string | null
   crowdsec_ip: string
+  tpot_ip: string
 }
 
 export async function fetchLab(): Promise<LabConfig> {

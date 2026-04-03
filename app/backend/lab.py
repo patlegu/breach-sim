@@ -61,6 +61,12 @@ class LabConfig:
     srv_db_ip: str = ""
     k3s_cp_ip: str = ""
 
+    # T-Pot honeypot
+    tpot_ip: str = ""
+    tpot_es_port: int = 64298
+    tpot_es_user: str = ""
+    tpot_es_password: str = ""
+
     @property
     def opnsense_api_url(self) -> str:
         return f"https://{self.opnsense_ip}/api"
@@ -98,6 +104,11 @@ def load_lab_config() -> LabConfig:
         srv_web_ip=env("BREACH_SRV_WEB_IP", f"{lan_base}.10"),
         srv_db_ip=env("BREACH_SRV_DB_IP", f"{lan_base}.20"),
         k3s_cp_ip=env("BREACH_K3S_CP_IP", f"{lan_base}.30"),
+
+        tpot_ip=env("BREACH_TPOT_IP", "192.168.1.50"),
+        tpot_es_port=int(env("BREACH_TPOT_ES_PORT", "64298")),
+        tpot_es_user=env("BREACH_TPOT_ES_USER", ""),
+        tpot_es_password=env("BREACH_TPOT_ES_PASSWORD", ""),
     )
     return cfg
 
