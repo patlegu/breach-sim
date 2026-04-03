@@ -414,7 +414,7 @@
   {/if}
 
   <!-- Canvas Cytoscape -->
-  <div class={live ? 'flex-[4] min-h-0' : 'flex-1 min-h-0'}>
+  <div class={live ? 'flex-[3] min-h-0' : 'flex-1 min-h-0'}>
     <div bind:this={container} class="w-full h-full rounded-b-lg" style="background: #0c1220;" />
   </div>
 
