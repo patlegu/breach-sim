@@ -365,6 +365,7 @@
       <target>${tpot_ip}</target>
       <local-port>${port}</local-port>
       <descr>T-Pot honeypot port ${port}</descr>
+      <associated-rule-id>pass</associated-rule-id>
     </rule>
 %{ endfor ~}
   </nat>
@@ -407,22 +408,6 @@
         <port>443</port>
       </destination>
     </rule>
-%{ for port in tpot_ports ~}
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <descr>T-Pot honeypot port ${port}</descr>
-      <interface>wan</interface>
-      <source>
-        <any/>
-      </source>
-      <destination>
-        <address>${tpot_ip}</address>
-        <port>${port}</port>
-      </destination>
-    </rule>
-%{ endfor ~}
   </filter>
   <gateways>
     <gateway_item>
