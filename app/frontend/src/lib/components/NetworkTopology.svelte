@@ -498,9 +498,9 @@
       <circle cx={attackerDotX} cy={attackerDotY} r="6"  fill={attackColor} fill-opacity="0.35" />
       <circle cx={attackerDotX} cy={attackerDotY} r="3"  fill={attackColor} />
       {#if attackerGeoLabel && liveTpotHit}
-        <text x={attackerDotX} y={attackerDotY - 16} text-anchor="middle" font-size="13" font-family="monospace" font-weight="600"
+        <text x={attackerDotX} y={attackerDotY - 18} text-anchor="middle" font-size="20" font-family="monospace" font-weight="600"
           fill={attackColor} opacity="0.95" class="pointer-events-none"
-          style="text-shadow: 0 1px 4px #000;">{attackerGeoLabel}</text>
+          style="text-shadow: 0 1px 6px #000;">{attackerGeoLabel}</text>
       {/if}
     {/if}
 
