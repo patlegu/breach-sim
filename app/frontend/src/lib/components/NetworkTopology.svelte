@@ -36,17 +36,17 @@
     const tpot = cfg.tpot_ip !== '127.0.0.1' ? cfg.tpot_ip : '192.168.1.50'
     return {
       nodes: [
-        { id: 'attacker',  label: '🔴 Attaquant\n…',               x: 300, y: 40  },
-        { id: 'internet',  label: '🌐 Internet\nWAN',              x: 300, y: 130 },
-        { id: 'firewall',  label: `🛡 OPNsense\n${fw}`,            x: 300, y: 220 },
-        { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',             x: 60,  y: 340 },
-        { id: 'dmz',       label: '🔒 DMZ\n192.168.1.0/24',        x: 210, y: 340 },
-        { id: 'lan',       label: '🏠 LAN\n192.168.21.0/24',       x: 390, y: 340 },
-        { id: 'wireguard', label: '🔐 WireGuard\nVPN',             x: 540, y: 340 },
-        { id: 'srv-web',   label: `💻 srv-web\n${web}`,            x: 130, y: 460 },
-        { id: 'tpot',      label: `🍯 T-Pot\n${tpot}`,             x: 280, y: 460 },
-        { id: 'srv-db',    label: `🗄 srv-db\n${db}`,              x: 390, y: 460 },
-        { id: 'srv-app',   label: `⚙ srv-app\n${app}`,            x: 510, y: 460 },
+        { id: 'attacker',  label: '🔴 Attaquant\n…',               x: 300, y: 50  },
+        { id: 'internet',  label: '🌐 Internet\nWAN',              x: 300, y: 170 },
+        { id: 'firewall',  label: `🛡 OPNsense\n${fw}`,            x: 300, y: 300 },
+        { id: 'crowdsec',  label: '⚔ CrowdSec\nIDPS',             x: 50,  y: 430 },
+        { id: 'dmz',       label: '🔒 DMZ\n192.168.1.0/24',        x: 190, y: 430 },
+        { id: 'lan',       label: '🏠 LAN\n192.168.21.0/24',       x: 390, y: 430 },
+        { id: 'wireguard', label: '🔐 WireGuard\nVPN',             x: 545, y: 430 },
+        { id: 'srv-web',   label: `💻 srv-web\n${web}`,            x: 110, y: 560 },
+        { id: 'tpot',      label: `🍯 T-Pot\n${tpot}`,             x: 265, y: 560 },
+        { id: 'srv-db',    label: `🗄 srv-db\n${db}`,              x: 390, y: 560 },
+        { id: 'srv-app',   label: `⚙ srv-app\n${app}`,            x: 510, y: 560 },
       ],
       edges: [
         { id: 'e-atk-net',  source: 'attacker',  target: 'internet'  },
