@@ -363,32 +363,20 @@
         <descr>No SNAT T-Pot - preserve attacker src IP</descr>
       </rule>
     </outbound>
-    <!-- Plage 1-442 TCP+UDP → T-Pot (exclu 443 = management OPNsense) -->
+%{ for port in tpot_ports ~}
     <rule>
       <interface>wan</interface>
-      <protocol>tcp/udp</protocol>
+      <protocol>tcp</protocol>
       <source><any/></source>
       <destination>
         <network>wanip</network>
-        <port>1:442</port>
+        <port>${port}</port>
       </destination>
       <target>${tpot_ip}</target>
-      <local-port>1:442</local-port>
-      <descr>T-Pot honeypot 1-442</descr>
+      <local-port>${port}</local-port>
+      <descr>T-Pot honeypot port ${port}</descr>
     </rule>
-    <!-- Plage 444-64000 TCP+UDP → T-Pot -->
-    <rule>
-      <interface>wan</interface>
-      <protocol>tcp/udp</protocol>
-      <source><any/></source>
-      <destination>
-        <network>wanip</network>
-        <port>444:64000</port>
-      </destination>
-      <target>${tpot_ip}</target>
-      <local-port>444:64000</local-port>
-      <descr>T-Pot honeypot 444-64000</descr>
-    </rule>
+%{ endfor ~}
   </nat>
   <filter>
     <rule>
@@ -415,7 +403,6 @@
         <any/>
       </destination>
     </rule>
-    <!-- Management OPNsense : traité avant les règles T-Pot -->
     <rule>
       <type>pass</type>
       <ipprotocol>inet</ipprotocol>
@@ -428,31 +415,20 @@
         <port>443</port>
       </destination>
     </rule>
-    <!-- Autoriser trafic WAN vers T-Pot (plages forwardées) -->
+%{ for port in tpot_ports ~}
     <rule>
       <type>pass</type>
       <ipprotocol>inet</ipprotocol>
-      <protocol>tcp/udp</protocol>
-      <descr>T-Pot WAN 1-442</descr>
+      <protocol>tcp</protocol>
+      <descr>T-Pot honeypot port ${port}</descr>
       <interface>wan</interface>
       <source><any/></source>
       <destination>
         <network>wanip</network>
-        <port>1:442</port>
+        <port>${port}</port>
       </destination>
     </rule>
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp/udp</protocol>
-      <descr>T-Pot WAN 444-64000</descr>
-      <interface>wan</interface>
-      <source><any/></source>
-      <destination>
-        <network>wanip</network>
-        <port>444:64000</port>
-      </destination>
-    </rule>
+%{ endfor ~}
   </filter>
   <gateways>
     <gateway_item>
