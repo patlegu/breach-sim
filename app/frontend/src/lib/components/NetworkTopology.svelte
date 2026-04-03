@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
+  import { fade } from 'svelte/transition'
   import { topologyStore, type NodeStatus } from '../stores/topologyStore'
   import { animStore, type AnimPhase } from '../stores/animStore'
   import { tpotStore } from '../stores/tpotStore'
@@ -479,31 +480,27 @@
         {@const cp1X = dotX + (fx - dotX) * 0.25}
         {@const cp2X = dotX + (fx - dotX) * 0.75}
         {@const arc  = `M${dotX},${dotY} C${cp1X},${cpY} ${cp2X},${cpY} ${fx},${fy}`}
-        <!-- lueur statique (trajectoire complète visible en filigrane) -->
-        <path d={arc} fill="none" stroke={attackColor} stroke-width="14" stroke-opacity="0.06"
-          stroke-linecap="round" />
-        <path d={arc} fill="none" stroke={attackColor} stroke-width="1.5" stroke-opacity="0.25"
-          stroke-linecap="round" />
-        <!-- balle qui parcourt la trajectoire -->
-        <path d={arc} fill="none" stroke={attackColor} stroke-width="4"
-          stroke-dasharray="60 2000" stroke-linecap="round"
-          class="anim-bullet" />
-        <path d={arc} fill="none" stroke="white" stroke-width="1.5"
-          stroke-dasharray="60 2000" stroke-linecap="round" stroke-opacity="0.7"
-          class="anim-bullet" />
+        <g transition:fade={{ duration: 600 }}>
+          <!-- lueur statique (filigrane) -->
+          <path d={arc} fill="none" stroke={attackColor} stroke-width="14" stroke-opacity="0.06" stroke-linecap="round" />
+          <path d={arc} fill="none" stroke={attackColor} stroke-width="1.5" stroke-opacity="0.25" stroke-linecap="round" />
+          <!-- balle -->
+          <path d={arc} fill="none" stroke={attackColor} stroke-width="4" stroke-dasharray="60 2000" stroke-linecap="round" class="anim-bullet" />
+          <path d={arc} fill="none" stroke="white" stroke-width="1.5" stroke-dasharray="60 2000" stroke-linecap="round" stroke-opacity="0.7" class="anim-bullet" />
+        </g>
       {/if}
     {/if}
 
-    <!-- Flèche sur le graphe Cytoscape -->
+    <!-- Flèche sur le graphe Cytoscape (même style bullet) -->
     {#if attackPathD && (animPhase !== 'idle' || liveTpotHit)}
-      <path d={attackPathD} fill="none"
-        stroke={attackColor} stroke-width="10" stroke-opacity="0.12"
-        stroke-linecap="round" stroke-linejoin="round" />
-      <path d={attackPathD} fill="none"
-        stroke={attackColor} stroke-width="2.5"
-        stroke-dasharray="12 8" stroke-linecap="round" stroke-linejoin="round"
-        marker-end="url(#atk-arrow)"
-        class={animPhase === 'attacking' || liveTpotHit ? 'anim-attack' : 'anim-defend'} />
+      <g transition:fade={{ duration: 600 }}>
+        <!-- filigrane statique -->
+        <path d={attackPathD} fill="none" stroke={attackColor} stroke-width="14" stroke-opacity="0.06" stroke-linecap="round" stroke-linejoin="round" />
+        <path d={attackPathD} fill="none" stroke={attackColor} stroke-width="1.5" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round" />
+        <!-- balle -->
+        <path d={attackPathD} fill="none" stroke={attackColor} stroke-width="4" stroke-dasharray="60 2000" stroke-linecap="round" stroke-linejoin="round" class="anim-bullet" />
+        <path d={attackPathD} fill="none" stroke="white" stroke-width="1.5" stroke-dasharray="60 2000" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.7" class="anim-bullet" />
+      </g>
     {/if}
   </svg>
 
@@ -519,12 +516,6 @@
 </div>
 
 <style>
-  @keyframes flow-dash {
-    to { stroke-dashoffset: -20; }
-  }
-  .anim-attack { animation: flow-dash 0.45s linear infinite; }
-  .anim-defend { animation: flow-dash 0.7s linear infinite; }
-
   @keyframes shoot {
     from { stroke-dashoffset: 0; }
     to   { stroke-dashoffset: -2060; }
