@@ -350,9 +350,11 @@
       userPanningEnabled: false,
     })
 
-    // ResizeObserver : refit automatique à chaque changement de taille du conteneur
+    // Observer une seule fois : fit quand le conteneur a ses vraies dimensions
     resizeObserver?.disconnect()
     resizeObserver = new ResizeObserver(() => {
+      resizeObserver?.disconnect()
+      resizeObserver = null
       cy?.resize()
       cy?.fit(cy.nodes(), live ? 4 : 20)
       updateFirewallPos()
@@ -473,7 +475,7 @@
   })
 </script>
 
-<div class="relative w-full h-full flex flex-col">
+<div class="absolute inset-0 flex flex-col">
 
   <!-- Carte monde (mode live uniquement) -->
   {#if live}

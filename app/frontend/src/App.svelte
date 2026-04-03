@@ -235,7 +235,7 @@
         {#if !labConfig?.live}
           <p class="text-xs text-zinc-500 uppercase tracking-wider mb-2 shrink-0">Topologie réseau</p>
         {/if}
-        <div class="flex-1 min-h-0">
+        <div class="flex-1 min-h-0 relative">
           <NetworkTopology
             {attackerIp} {attackerRole} scenarioId={selectedId ?? ''}
             live={labConfig?.live ?? false}
