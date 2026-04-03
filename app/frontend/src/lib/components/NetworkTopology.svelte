@@ -335,6 +335,14 @@
 
   $: if (container && (scenarioId || live)) buildCy(scenarioId, attackerIp)
 
+  // En mode live : géolocaliser l'IP du scénario dès qu'elle change (sans attendre T-Pot)
+  $: if (live && attackerIp && attackerIp !== '?' && attackerIp !== currentGeoIp) {
+    currentGeoIp = attackerIp
+    lookupGeo(attackerIp).then(geo => {
+      if (geo) { attackerLat = geo.lat; attackerLon = geo.lon }
+    })
+  }
+
   // ── Réagir aux états nœuds ─────────────────────────────────────────────────
   const unsubTopology = topologyStore.subscribe(state => {
     if (!cy) return
