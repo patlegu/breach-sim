@@ -11,3 +11,14 @@ vm_password_hash   = "$6$rounds=5000$..."
 # openssl rand -hex 40
 opnsense_api_key    = ""
 opnsense_api_secret = ""
+
+# T-Pot — interface web (port 64297)
+tpot_web_user = "admin"
+tpot_web_pw   = ""
+
+# Interface publique de l'hyperviseur (défaut : enp41s0)
+# public_iface = "enp41s0"
+
+# libvirt (défauts suffisants pour korrig)
+# libvirt_uri  = "qemu:///system"
+# libvirt_pool = "images"
