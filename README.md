@@ -146,6 +146,73 @@ Management SSH depuis l'hyperviseur :
 
 > **Bootstrap OPNsense** : avec la golden image (`opnsense-golden.qcow2` dans le cache), SSH est disponible dès le premier boot — `tofu apply` pousse `config.xml` automatiquement. Sans golden image, bootstrap console requis une seule fois (voir `infra/modules/opnsense/main.tf`).
 
+### Network forwarding stack
+
+C'est la partie la plus complexe à débugger : un paquet entrant traverse **4 couches** avant d'atteindre un honeypot.
+
+```
+[Internet]
+    │  TCP dpt:22 (ou tout autre port honeypot)
+    ▼
+[korrig — enp41s0]
+    │  iptables PREROUTING : DNAT → 10.0.1.2:22  (OPNsense WAN)
+    │  iptables FORWARD    : ACCEPT enp41s0 → virbr2 dpt:22
+    ▼
+[virbr2 — bridge libvirt WAN — 10.0.1.0/24]
+    │  Couche virtuelle : libvirt isole ce réseau (NAT sortant autorisé)
+    ▼
+[OPNsense vtnet1 — WAN 10.0.1.x DHCP]
+    │  pf rdr : rdr on vtnet1 proto tcp from any to (vtnet1) port ssh → 192.168.1.50 port 22
+    ▼
+[OPNsense vtnet0 — DMZ 192.168.1.1]
+    │  OPNsense route vers la DMZ (réseau isolé, pas de NAT libvirt)
+    ▼
+[virbr3 — bridge libvirt DMZ — 192.168.1.0/24]
+    ▼
+[T-Pot — 192.168.1.50 — Cowrie / Dionaea / ...]
+```
+
+**Bridges libvirt et leur rôle :**
+
+| Bridge  | Réseau          | Type     | Usage                                  |
+|---------|-----------------|----------|----------------------------------------|
+| virbr1  | 192.168.21.0/24 | isolated | LAN — srv-db, srv-app                  |
+| virbr2  | 10.0.1.0/24     | NAT      | WAN OPNsense — accès internet sortant  |
+| virbr3  | 192.168.1.0/24  | isolated | DMZ — T-Pot, srv-web                   |
+
+`isolated` = pas de routage hôte, uniquement inter-VMs. `NAT` = libvirt masquerade + DHCP.
+
+**Points de blocage fréquents :**
+
+- `LIBVIRT_FWI` / `LIBVIRT_FWO` — libvirt insère ces chains DROP en fin de FORWARD. Les règles ACCEPT doivent être en **position 1** avant elles.
+- `virbr2` NAT : libvirt ajoute ses propres règles MASQUERADE sur ce bridge. Ne pas les modifier.
+- OPNsense `blockpriv` / `blockbogons` : désactivés sur WAN en lab (le WAN est un réseau NAT libvirt 10.0.x.x). Activer ces options bloquerait tout.
+- SSH management via `BindAddress` : korrig n'a pas de route directe vers 192.168.1.0/24. Le bridge hôte (`192.168.1.254`) sert de source pour atteindre les VMs de la DMZ.
+
+**Vérifier chaque couche :**
+
+```bash
+# 1. DNAT korrig (le paquet est-il redirigé ?)
+iptables -t nat -L PREROUTING -n -v | grep dpt:22
+
+# 2. FORWARD korrig (le paquet passe-t-il vers virbr2 ?)
+iptables -L FORWARD -n -v | grep virbr2
+
+# 3. Trafic sur le bridge WAN (OPNsense reçoit-il ?)
+tcpdump -i virbr2 -n tcp port 22
+
+# 4. Trafic sur OPNsense WAN (pf rdr déclenché ?)
+# Sur OPNsense : ssh -o BindAddress=192.168.1.254 root@192.168.1.1
+tcpdump -i vtnet1 -n tcp port 22
+
+# 5. Trafic sur OPNsense DMZ (paquet redirigé vers T-Pot ?)
+tcpdump -i vtnet0 -n tcp port 22
+
+# 6. Trafic sur le bridge DMZ (T-Pot reçoit-il ?)
+# Sur korrig :
+tcpdump -i virbr3 -n tcp port 22 and host 192.168.1.50
+```
+
 ### Deploy a lab
 
 ```bash
