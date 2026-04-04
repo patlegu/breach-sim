@@ -400,18 +400,6 @@
         <any/>
       </destination>
     </rule>
-    <rule>
-      <type>pass</type>
-      <ipprotocol>inet</ipprotocol>
-      <protocol>tcp</protocol>
-      <descr>Allow HTTPS API from WAN (OPNsense management)</descr>
-      <interface>wan</interface>
-      <source><any/></source>
-      <destination>
-        <network>wanip</network>
-        <port>4443</port>
-      </destination>
-    </rule>
 %{ for port in tpot_ports ~}
     <rule>
       <type>pass</type>
