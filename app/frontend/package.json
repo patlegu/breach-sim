@@ -9,7 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "cytoscape": "^3.30.0"
+    "cytoscape": "^3.30.0",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "~2.4.6",

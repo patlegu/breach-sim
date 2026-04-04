@@ -18,3 +18,7 @@ infra/**/terraform.tfstate
 infra/**/terraform.tfstate.backup
 infra/**/terraform.tfvars
 infra/**/.cache/
+app/backend/GeoLite2-City.mmdb
+infra/envs/classic/terraform.tfstate.*.backup
+/backend/
+/frontend/
