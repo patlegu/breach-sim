@@ -120,15 +120,18 @@ Live mode connects the AI agents to a real isolated network running on KVM/libvi
 ### Lab topology (classic)
 
 ```
-Internet (NAT)
+Internet
      │
-  OPNsense (vtnet1=WAN DHCP, vtnet0=DMZ 192.168.1.1, vtnet2=LAN 192.168.21.1)
+  korrig (hyperviseur — DNAT honeypot ports → OPNsense WAN)
      │
-     ├── DMZ 192.168.1.0/24 (isolated)
-     │    ├── T-Pot CE  192.168.1.50   (honeypot — Cowrie SSH, Dionaea, Kibana)
+  OPNsense (vtnet1=WAN DHCP/NAT virbr2, vtnet0=DMZ 192.168.1.1, vtnet2=LAN 192.168.21.1)
+     │       pf rdr : ports honeypot → T-Pot 192.168.1.50
+     │
+     ├── DMZ 192.168.1.0/24 (isolated — virbr3)
+     │    ├── T-Pot CE  192.168.1.50   (honeypot — Cowrie SSH, Dionaea, ...)
      │    └── srv-web   192.168.1.10   (Nginx)
      │
-     └── LAN 192.168.21.0/24 (isolated)
+     └── LAN 192.168.21.0/24 (isolated — virbr1)
           ├── srv-db    192.168.21.10  (PostgreSQL)
           └── srv-app   192.168.21.20  (app server)
 
@@ -138,8 +141,8 @@ LAN : 192.168.<20+INSTANCE>.0/24 — multi-instance sans conflit de routes
 
 Management SSH depuis l'hyperviseur :
 - OPNsense DMZ : `ssh -o BindAddress=192.168.1.254 root@192.168.1.1`
-- T-Pot : `ssh -b 192.168.1.254 breach@192.168.1.50` (port 64295 après installation)
-- VMs LAN : via OPNsense en proxy jump
+- T-Pot : `ssh -o BindAddress=192.168.1.254 -p 64295 breach@192.168.1.50`
+- VMs LAN : `ssh -o BindAddress=192.168.21.254 debian@192.168.21.10`
 
 > **Bootstrap OPNsense** : avec la golden image (`opnsense-golden.qcow2` dans le cache), SSH est disponible dès le premier boot — `tofu apply` pousse `config.xml` automatiquement. Sans golden image, bootstrap console requis une seule fois (voir `infra/modules/opnsense/main.tf`).
 
