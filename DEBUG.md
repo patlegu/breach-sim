@@ -74,12 +74,15 @@ tcpdump -i enp41s0 -n tcp
 # Trafic entrant hors adresses locales (attaquants réels)
 tcpdump -i enp41s0 -n tcp and not net 10.0.0.0/8 and not net 192.168.0.0/16 and not net 172.16.0.0/12
 
-# Trafic sur le bridge DMZ (entre korrig et VMs)
-tcpdump -i virbr3 -n
-
-# Vérifier le DNAT SSH (port 22 korrig → T-Pot 192.168.1.50:22)
+# Vérifier le DNAT SSH : le paquet part bien vers OPNsense WAN (virbr2, pas virbr3)
+# Étape 1 — arrivée sur korrig
 tcpdump -i enp41s0 -n tcp port 22
-tcpdump -i virbr3 -n tcp port 22 and host 192.168.1.50
+# Étape 2 — après DNAT, forwarding vers OPNsense WAN
+tcpdump -i virbr2 -n tcp port 22
+# Étape 3 — après pf rdr OPNsense, trafic OPNsense→T-Pot (src sera 192.168.1.1, pas l'attaquant)
+# Sur OPNsense : tcpdump -i vtnet0 -n tcp port 22
+# Sur korrig (bridge DMZ hôte) — montre le dernier saut OPNsense→T-Pot :
+tcpdump -i virbr3 -n tcp port 22
 
 # IP sources qui frappent le port 22 (top attaquants)
 tcpdump -i enp41s0 -n tcp port 22 -c 200 | awk '{print $3}' | cut -d. -f1-4 | sort | uniq -c | sort -rn | head -20
