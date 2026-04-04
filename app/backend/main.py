@@ -222,6 +222,7 @@ async def get_lab():
         "lab_type": _lab.lab_type,
         "instance": _lab.instance,
         "opnsense_ip": _lab.opnsense_ip,
+        "opnsense_port": _lab.opnsense_port,
         "infected_ip": _lab.infected_ip,
         "srv_web_ip": _lab.srv_web_ip,
         "srv_db_ip": _lab.srv_db_ip,

@@ -134,6 +134,7 @@ export interface LabConfig {
   lab_type: string
   instance: number
   opnsense_ip: string
+  opnsense_port: number
   infected_ip: string
   srv_web_ip: string
   srv_db_ip: string

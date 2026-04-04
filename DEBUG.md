@@ -269,6 +269,6 @@ tcpdump -i pflog0 -n host 192.168.1.50
 # T-Pot UI (port 64297) accessible sur localhost:8443
 ssh -L 8443:192.168.1.50:64297 -o BindAddress=192.168.1.254 root@192.168.1.1 -N
 
-# OPNsense WebUI (port 443) accessible sur localhost:8444
-ssh -L 8444:192.168.1.1:443 -o BindAddress=192.168.1.254 root@192.168.1.1 -N
+# OPNsense WebUI (port 4443) accessible sur localhost:4443
+ssh -L 4443:192.168.1.1:4443 -o BindAddress=192.168.1.254 root@192.168.1.1 -N
 ```

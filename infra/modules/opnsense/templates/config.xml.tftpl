@@ -245,6 +245,7 @@
     <timeservers>0.opnsense.pool.ntp.org 1.opnsense.pool.ntp.org</timeservers>
     <webgui>
       <protocol>https</protocol>
+      <port>4443</port>
       <ssl-certref/>
     </webgui>
     <disablenatreflection>yes</disablenatreflection>
@@ -408,7 +409,7 @@
       <source><any/></source>
       <destination>
         <network>wanip</network>
-        <port>443</port>
+        <port>4443</port>
       </destination>
     </rule>
 %{ for port in tpot_ports ~}

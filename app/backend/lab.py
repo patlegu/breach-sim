@@ -42,6 +42,7 @@ class LabConfig:
 
     # OPNsense
     opnsense_ip: str = ""
+    opnsense_port: int = 4443
     opnsense_api_key: str = ""
     opnsense_api_secret: str = ""
     opnsense_verify_tls: bool = False   # self-signed par défaut
@@ -69,7 +70,7 @@ class LabConfig:
 
     @property
     def opnsense_api_url(self) -> str:
-        return f"https://{self.opnsense_ip}/api"
+        return f"https://{self.opnsense_ip}:{self.opnsense_port}/api"
 
     @property
     def crowdsec_lapi_url(self) -> str:
@@ -90,6 +91,7 @@ def load_lab_config() -> LabConfig:
         instance=instance,
 
         opnsense_ip=env("BREACH_OPNSENSE_IP", f"{lan_base}.1"),
+        opnsense_port=int(env("BREACH_OPNSENSE_PORT", "4443")),
         opnsense_api_key=env("BREACH_OPNSENSE_API_KEY", ""),
         opnsense_api_secret=env("BREACH_OPNSENSE_API_SECRET", ""),
         opnsense_verify_tls=env("BREACH_OPNSENSE_VERIFY_TLS", "0") == "1",

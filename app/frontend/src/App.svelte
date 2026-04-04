@@ -157,7 +157,7 @@
           live · lab-{labConfig.instance}
         </span>
         <span class="text-xs font-mono text-zinc-600" title="OPNsense">
-          {labConfig.opnsense_ip}
+          {labConfig.opnsense_ip}:{labConfig.opnsense_port}
         </span>
       {:else if labConfig}
         <span class="text-xs font-mono px-2 py-0.5 rounded border border-zinc-700 text-zinc-500 bg-zinc-900">
