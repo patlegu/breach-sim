@@ -4,15 +4,28 @@ instance_id = 1
 
 ssh_public_key = "ssh-ed25519 AAAA... pat@host"
 
+# Mots de passe VMs — hashés SHA512
 # openssl passwd -6 'monmotdepasse'
 opnsense_root_hash = "$6$rounds=5000$..."
 vm_password_hash   = "$6$rounds=5000$..."
 
-# openssl rand -hex 40
+# API OPNsense
+# Générer :
+#   KEY=$(openssl rand -hex 40)
+#   SECRET=$(openssl rand -hex 40)
+#
+# opnsense_api_key    = $KEY    (en clair — injecté dans config.xml tel quel)
+# opnsense_api_secret = hash($SECRET) — OPNsense stocke le secret hashé dans config.xml
+#   openssl passwd -6 "$SECRET"
+#
+# Dans .env :
+#   BREACH_OPNSENSE_API_KEY=$KEY       ← en clair (authentification HTTP)
+#   BREACH_OPNSENSE_API_SECRET=$SECRET ← en clair (authentification HTTP)
 opnsense_api_key    = ""
-opnsense_api_secret = ""
+opnsense_api_secret = "$6$rounds=5000$..."
 
 # T-Pot — interface web (port 64297)
+# Dans .env : BREACH_TPOT_ES_USER / BREACH_TPOT_ES_PASSWORD (en clair)
 tpot_web_user = "admin"
 tpot_web_pw   = ""
 
