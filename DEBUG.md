@@ -154,21 +154,84 @@ tcpdump -i enp41s0 -n tcp port 22 -c 500 | grep -oP '\d+\.\d+\.\d+\.\d+' | sort 
 
 ## Libvirt / VMs
 
+### VMs
+
 ```bash
-# État des VMs (sur korrig)
+# Lister toutes les VMs (running + stopped)
 virsh list --all
 
-# Console OPNsense (bootstrap sans SSH)
+# Détail d'une VM (CPU, RAM, état)
+virsh dominfo breach-1-opnsense
+
+# Démarrer / arrêter / forcer l'arrêt
+virsh start   breach-1-opnsense
+virsh shutdown breach-1-opnsense
+virsh destroy  breach-1-opnsense   # équivalent power off
+
+# Console série (bootstrap sans SSH — quitter : Ctrl+])
 virsh console breach-1-opnsense
-# Quitter : Ctrl+]
 
-# Vérifier les bridges réseau
+# Snapshot rapide avant une opération risquée
+virsh snapshot-create-as breach-1-opnsense snap-avant-modif
+virsh snapshot-list breach-1-opnsense
+virsh snapshot-revert breach-1-opnsense snap-avant-modif
+```
+
+### Interfaces réseau des VMs
+
+```bash
+# Interfaces et MACs d'une VM (XML complet)
+virsh domiflist breach-1-opnsense
+
+# Correspondance interface VM ↔ bridge hôte
+# Exemple de sortie :
+#  Interface   Type     Source   Model    MAC
+#  vnet0       bridge   virbr2   virtio   52:54:00:xx  ← vtnet1 WAN  OPNsense
+#  vnet1       bridge   virbr3   virtio   52:54:00:xx  ← vtnet0 DMZ  OPNsense
+#  vnet2       bridge   virbr1   virtio   52:54:00:xx  ← vtnet2 LAN  OPNsense
+
+# Statistiques trafic par interface virtuelle
+virsh domifstat breach-1-opnsense vnet0
+
+# Lister toutes les interfaces tap/vnet actives sur l'hôte
+ip link show type tun
+ip link show type bridge
+```
+
+### Réseaux libvirt
+
+```bash
+# Lister les réseaux (running + inactifs)
 virsh net-list --all
-virsh net-info virbr3
 
-# IP assignées sur le bridge DMZ
+# Détail d'un réseau (bridge, mode, DHCP)
+virsh net-info breach-1-wan
+virsh net-dumpxml breach-1-wan   # XML complet avec plage DHCP
+
+# Baux DHCP actifs sur un réseau NAT
+virsh net-dhcp-leases breach-1-wan
+
+# IP voisines sur chaque bridge (VMs effectivement joignables)
+ip neigh show dev virbr1    # LAN
+ip neigh show dev virbr2    # WAN
+ip neigh show dev virbr3    # DMZ
 arp -n | grep virbr3
-ip neigh show dev virbr3
+```
+
+### Volumes / disques
+
+```bash
+# Lister les volumes dans le pool images
+virsh vol-list images
+
+# Taille réelle vs allouée d'un disque VM
+virsh vol-info --pool images breach-1-opnsense.qcow2
+qemu-img info /var/lib/libvirt/images/breach-1-opnsense.qcow2
+
+# Capture d'un disque (VM à l'arrêt uniquement)
+virsh shutdown breach-1-opnsense
+virsh vol-download --pool images breach-1-opnsense.qcow2 /tmp/backup.qcow2
+qemu-img convert -c -O qcow2 /tmp/backup.qcow2 /var/lib/libvirt/images/.cache/opnsense-golden.qcow2
 ```
 
 ---
