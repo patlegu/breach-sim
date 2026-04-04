@@ -351,20 +351,13 @@
   </snmpd>
   <nat>
     <outbound>
-      <mode>manual</mode>
+      <mode>automatic</mode>
       <!--
-        Mode manuel : pas de règle sur opt1 → le trafic forwardé vers T-Pot
-        n'est pas SNATé → T-Pot voit l'IP source réelle de l'attaquant.
-        Seule règle explicite : SNAT sur WAN pour l'internet sortant de T-Pot
-        (mises à jour, threat intel feeds).
+        Mode automatique : OPNsense génère les règles SNAT pour tous les
+        réseaux locaux (opt1/DMZ, lan) sortant via WAN.
+        N'affecte pas les IPs vues par T-Pot : les connexions entrantes des
+        attaquants transitent par les règles rdr (DNAT), pas par outbound NAT.
       -->
-      <rule>
-        <interface>wan</interface>
-        <source><network>opt1</network></source>
-        <destination><any/></destination>
-        <target>wanip</target>
-        <descr>SNAT T-Pot DMZ sortant vers internet</descr>
-      </rule>
     </outbound>
 %{ for port in tpot_ports ~}
     <rule>
